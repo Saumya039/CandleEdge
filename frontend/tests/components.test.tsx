@@ -116,3 +116,22 @@ describe("TradingViewPanel", () => {
     expect(document.querySelector("script[src*='tradingview']")).not.toBeNull();
   });
 });
+
+describe("SignalPopup", () => {
+  it("stays quiet for setups that already exist on load, then alerts with a clear action on a new state", async () => {
+    const { SignalPopup } = await import("@/components/SignalPopup");
+    const base = signal();
+    const onShow = vi.fn();
+    const { rerender } = render(<SignalPopup signals={[{ ...base, state: "CANDIDATE" }]} trades={[]} onShow={onShow} />);
+    expect(screen.queryByTestId("signal-popup")).toBeNull();
+    rerender(<SignalPopup signals={[{ ...base, state: "TRIGGERED" }]} trades={[]} onShow={onShow} />);
+    const pop = screen.getByTestId("signal-popup");
+    expect(pop.textContent).toMatch(/BUY NOW/);
+    expect(pop.textContent).toMatch(/no order has been or will be sent/);
+    fireEvent.click(within(pop).getByText("Show on chart"));
+    expect(onShow).toHaveBeenCalledWith(base.id, base.underlying);
+    expect(screen.queryByTestId("signal-popup")).toBeNull();
+    rerender(<SignalPopup signals={[{ ...base, state: "STOPPED" }]} trades={[]} onShow={onShow} />);
+    expect(screen.getByTestId("signal-popup").textContent).toMatch(/EXIT NOW/);
+  });
+});

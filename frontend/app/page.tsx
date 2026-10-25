@@ -17,6 +17,7 @@ import { ProviderPanel } from "@/components/ProviderPanel";
 import { SimControls } from "@/components/SimControls";
 import { Alerts } from "@/components/Alerts";
 import { Panel } from "@/components/ui";
+import { SignalPopup } from "@/components/SignalPopup";
 import { DemoBar } from "@/components/DemoBar";
 import { DEMO } from "@/lib/demo";
 
@@ -43,6 +44,7 @@ export default function Page() {
   const chart = usePoll(() => api.candles(sym, tf), 2000, !!sym, [sym, tf]);
   const evalr = usePoll(() => api.evaluation(sym), 2000, !!sym, [sym]);
   const signals = usePoll(api.signals, 2500);
+  const tradesPoll = usePoll(api.trades, 3000);
   const chain = usePoll(() => api.chain(sym), 3000, !!sym && (tab === "chain"), [sym, tab]);
 
   const sigs: Signal[] = useMemo(() => signals.data ?? [], [signals.data]);
@@ -99,6 +101,7 @@ export default function Page() {
           </footer>
         </>
       )}
+      <SignalPopup signals={sigs} trades={tradesPoll.data ?? []} onShow={onSelect} />
     </main>
   );
 }

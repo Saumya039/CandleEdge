@@ -65,6 +65,11 @@ test("candidate -> paper trade is explained, journaled, and labelled simulated",
   if ((await page.getByTestId("risk-confirmed-tag").textContent()) !== "CONFIRMED") await page.getByTestId("risk-save").click();
   await expect(page.getByTestId("risk-confirmed-tag")).toHaveText("CONFIRMED");
   await sim(page, "skip", 55 * 60); // seed 1 produces a BANKNIFTY put at 09:30
+  const popup = page.getByTestId("signal-popup");
+  await expect(popup).toBeVisible({ timeout: 15000 });
+  await expect(popup).toContainText("no order has been or will be sent");
+  await popup.getByRole("button", { name: "Dismiss alert" }).click();
+  await expect(popup).toHaveCount(0);
   await page.getByTestId("wl-BANKNIFTY").getByRole("button").click();
   const card = page.getByTestId("signal-card");
   await expect(card).toBeVisible({ timeout: 15000 });
