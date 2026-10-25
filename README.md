@@ -45,6 +45,19 @@ trading** and confirm your limits; they are never assumed.
 Docker: `docker compose up --build` starts Postgres, backend and frontend with ports bound to `127.0.0.1`. The compose
 file and CI YAML parse, but the images were **not built** in the authoring environment (no Docker daemon).
 
+## Recorded demo (no backend)
+
+A static replay of a seeded simulator session, for trying the UI without running the API. Everything in it is real
+output of this app's simulator, recorded by a script, and the page is labelled RECORDED SIMULATION REPLAY.
+
+```bash
+cd backend && python ../scripts/record_demo_tape.py 1 ../frontend/public/tape-1.json   # seed 1: bearish day
+python ../scripts/record_demo_tape.py 7 ../frontend/public/tape-7.json                  # seed 7: bullish day
+cd ../frontend && npm run build:demo && npx serve out                                   # static site in frontend/out
+```
+
+Risk, strategy and backtest controls are read-only in the demo. Tapes are generated, not committed.
+
 ## Charts and TradingView
 
 The main chart uses TradingView's open-source `lightweight-charts` library, drawing the app's own candles with signal

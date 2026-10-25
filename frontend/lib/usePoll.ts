@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError } from "./api";
+import { ApiError } from "./errors";
 
 export interface PollResult<T> {
   data: T | null;

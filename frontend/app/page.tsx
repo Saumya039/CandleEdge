@@ -17,6 +17,8 @@ import { ProviderPanel } from "@/components/ProviderPanel";
 import { SimControls } from "@/components/SimControls";
 import { Alerts } from "@/components/Alerts";
 import { Panel } from "@/components/ui";
+import { DemoBar } from "@/components/DemoBar";
+import { DEMO } from "@/lib/demo";
 
 const PriceChart = dynamic(() => import("@/components/PriceChart").then((m) => m.PriceChart), { ssr: false, loading: () => <Panel title="Chart"><div className="h-[420px]" /></Panel> });
 const TradingViewPanel = dynamic(() => import("@/components/TradingViewPanel").then((m) => m.TradingViewPanel), { ssr: false });
@@ -56,6 +58,7 @@ export default function Page() {
 
   return (
     <main className="mx-auto flex w-full max-w-[1800px] min-w-0 flex-col gap-3 p-3">
+      {DEMO && <DemoBar />}
       <StatusBar s={s} error={state.error} onPause={onPause} />
       {!s && !state.loading && (
         <Panel title="No data"><p className="p-4 text-muted" data-testid="no-data">The backend is not reachable, so there is nothing to show. No placeholder prices are displayed. Start the API (see README) and this page will fill in.</p></Panel>

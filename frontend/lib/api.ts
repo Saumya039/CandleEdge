@@ -1,10 +1,9 @@
 import type { AppState, ChainData, ChartData, Evaluation, PaperTrade, ProviderInfo, SessionReport, Signal } from "./types";
 
-export class ApiError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-  }
-}
+import { ApiError } from "./errors";
+import { demoApi, DEMO } from "./demo";
+
+export { ApiError };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
@@ -27,7 +26,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 const post = <T>(path: string, body: unknown) => request<T>(path, { method: "POST", body: JSON.stringify(body) });
 
-export const api = {
+const realApi = {
   state: () => request<AppState>("/api/state"),
   candles: (sym: string, tf: string) => request<ChartData>(`/api/underlyings/${sym}/candles?tf=${tf}&limit=400`),
   evaluation: (sym: string) => request<Evaluation | null>(`/api/underlyings/${sym}/evaluation`),
@@ -48,3 +47,6 @@ export const api = {
   runBacktest: (sessions: number, firstSeed: number) => post<{ job: string }>("/api/backtest/run", { sessions, first_seed: firstSeed }),
   backtestJob: (id: string) => request<{ status: string; result?: Record<string, unknown>; error?: string }>(`/api/backtest/jobs/${id}`),
 };
+
+export type RealApi = typeof realApi;
+export const api: RealApi = DEMO ? demoApi : realApi;
