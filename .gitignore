@@ -13,3 +13,6 @@ data/
 .env.local
 playwright-report/
 test-results/
+
+*.egg-info/
+*.tsbuildinfo
