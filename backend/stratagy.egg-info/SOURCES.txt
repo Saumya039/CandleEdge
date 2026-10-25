@@ -1,5 +1,6 @@
 pyproject.toml
 stratagy/__init__.py
+stratagy/app.py
 stratagy/backtest.py
 stratagy/candles.py
 stratagy/config.py
@@ -7,6 +8,7 @@ stratagy/contracts.py
 stratagy/engine.py
 stratagy/indicators.py
 stratagy/journal.py
+stratagy/migrate.py
 stratagy/models.py
 stratagy/paper.py
 stratagy/pricing.py
@@ -22,4 +24,13 @@ stratagy.egg-info/requires.txt
 stratagy.egg-info/top_level.txt
 stratagy/providers/__init__.py
 stratagy/providers/base.py
+stratagy/providers/kite.py
+stratagy/providers/registry.py
 stratagy/providers/simulator.py
+tests/test_api_kite_backtest.py
+tests/test_engine.py
+tests/test_indicators.py
+tests/test_risk_contracts_state.py
+tests/test_sessions_candles.py
+tests/test_statemachine.py
+tests/test_strategy_scenarios.py

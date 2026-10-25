@@ -19,6 +19,7 @@ import { Alerts } from "@/components/Alerts";
 import { Panel } from "@/components/ui";
 
 const PriceChart = dynamic(() => import("@/components/PriceChart").then((m) => m.PriceChart), { ssr: false, loading: () => <Panel title="Chart"><div className="h-[420px]" /></Panel> });
+const TradingViewPanel = dynamic(() => import("@/components/TradingViewPanel").then((m) => m.TradingViewPanel), { ssr: false });
 const PremiumChart = dynamic(() => import("@/components/PremiumChart").then((m) => m.PremiumChart), { ssr: false });
 
 const TABS = [
@@ -70,6 +71,7 @@ export default function Page() {
             <div className="flex min-w-0 flex-col gap-3">
               <PriceChart symbol={sym} tf={tf} onTf={setTf} data={chart.data?.symbol === sym ? chart.data : null} signal={selected} onRange={setRange} error={chart.error} />
               <PremiumChart signal={selected} range={range} />
+              <TradingViewPanel symbol={sym} />
             </div>
             <div className="flex min-w-0 flex-col gap-3">
               {selected && selected.underlying === sym ? <SignalCard signal={selected} /> : <NoTradePanel ev={evalr.data ?? null} symbol={sym} />}

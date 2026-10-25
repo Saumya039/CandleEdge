@@ -45,6 +45,15 @@ trading** and confirm your limits; they are never assumed.
 Docker: `docker compose up --build` starts Postgres, backend and frontend with ports bound to `127.0.0.1`. The compose
 file and CI YAML parse, but the images were **not built** in the authoring environment (no Docker daemon).
 
+## Charts and TradingView
+
+The main chart uses TradingView's open-source `lightweight-charts` library, drawing the app's own candles with signal
+entry, stop, target and trade markers. A **TradingView reference chart** panel below it embeds TradingView's free
+Advanced Chart widget for the same NSE symbol. It is opt-in (nothing loads from TradingView until you click *Load
+widget*), uses TradingView's own data (usually delayed for NSE without a TradingView subscription), and is never fed
+into signals, paper trades or risk checks. TradingView's licensed Charting Library, which could be driven by this app's
+feed, requires a licence from TradingView and is not included.
+
 ## Activating genuine live data (Zerodha Kite Connect)
 
 You need a Kite Connect developer app **with a market-data subscription**, and a fresh access token every day:

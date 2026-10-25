@@ -103,3 +103,16 @@ describe("ScanPanel", () => {
     expect(screen.getByTestId("scan-nt-NIFTY")).toHaveTextContent("Trend present but no trigger");
   });
 });
+
+describe("TradingViewPanel", () => {
+  it("does not load the third-party widget until asked, and maps NSE symbols", async () => {
+    const { TradingViewPanel, tvSymbol } = await import("@/components/TradingViewPanel");
+    expect(tvSymbol("NIFTY")).toBe("NSE:NIFTY");
+    expect(tvSymbol("RELIANCE")).toBe("NSE:RELIANCE");
+    render(<TradingViewPanel symbol="NIFTY" />);
+    expect(document.querySelector("script[src*='tradingview']")).toBeNull();
+    expect(screen.getByTestId("tv-note").textContent).toMatch(/not this app/);
+    fireEvent.click(screen.getByTestId("tv-toggle"));
+    expect(document.querySelector("script[src*='tradingview']")).not.toBeNull();
+  });
+});
