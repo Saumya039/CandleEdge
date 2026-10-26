@@ -135,3 +135,24 @@ describe("SignalPopup", () => {
     expect(screen.getByTestId("signal-popup").textContent).toMatch(/EXIT NOW/);
   });
 });
+
+describe("AuthGate", () => {
+  it("shows the app when no login is required and a password form when it is", async () => {
+    const { api } = await import("@/lib/api");
+    const { AuthGate } = await import("@/components/AuthGate");
+    const spy = vi.spyOn(api, "authSession").mockResolvedValue({ required: false, authenticated: true });
+    const a = render(<AuthGate><p>inside</p></AuthGate>);
+    expect(await screen.findByText("inside")).toBeTruthy();
+    a.unmount();
+    spy.mockResolvedValue({ required: true, authenticated: false });
+    const login = vi.spyOn(api, "login").mockResolvedValue({ authenticated: true });
+    render(<AuthGate><p>inside</p></AuthGate>);
+    expect(await screen.findByTestId("login-form")).toBeTruthy();
+    expect(screen.queryByText("inside")).toBeNull();
+    fireEvent.change(screen.getByTestId("login-password"), { target: { value: "a-long-password" } });
+    fireEvent.click(screen.getByTestId("login-submit"));
+    expect(await screen.findByText("inside")).toBeTruthy();
+    expect(login).toHaveBeenCalledWith("a-long-password");
+    spy.mockRestore(); login.mockRestore();
+  });
+});

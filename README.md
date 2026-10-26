@@ -45,6 +45,11 @@ trading** and confirm your limits; they are never assumed.
 Docker: `docker compose up --build` starts Postgres, backend and frontend with ports bound to `127.0.0.1`. The compose
 file and CI YAML parse, but the images were **not built** in the authoring environment (no Docker daemon).
 
+## Private live deployment
+
+For a password-protected deployment on your own static-IP server (what Kite requires), see
+[docs/DEPLOY.md](docs/DEPLOY.md). A live provider refuses to start without a login (`AUTH_PASSWORD_HASH`, `AUTH_SECRET`).
+
 ## Recorded demo (no backend)
 
 A static replay of a seeded simulator session, for trying the UI without running the API. Everything in it is real

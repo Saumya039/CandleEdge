@@ -249,3 +249,51 @@ def test_alembic_migration_creates_all_tables():
         upgrade(url)
         tables = set(inspect(create_engine(url)).get_table_names())
     assert {"signals", "paper_trades", "candles", "health_events", "audit_events", "strategy_versions", "alembic_version"} <= tables
+
+
+# ------------------------------------------------------------------ login
+def _auth_app(pw="correct horse"):
+    from stratagy import auth
+
+    s = Settings(provider="simulator", auth_password_hash=auth.hash_password(pw, iterations=1000),
+                 auth_secret="x" * 40, auth_cookie_secure=False)
+    prov = SimulatorProvider(seed=5, sim_date=date(2026, 10, 23))
+    return create_app(s, provider=prov, journal=Journal("sqlite://", create_tables=True), autorun=False)
+
+
+def test_login_protects_api_and_accepts_the_right_password():
+    with TestClient(_auth_app()) as c:
+        assert c.get("/api/health").status_code == 200
+        assert c.get("/api/auth/session").json() == {"required": True, "authenticated": False}
+        assert c.get("/api/state").status_code == 401
+        assert c.post("/api/control/pause", json={"paused": True}).status_code == 401
+        assert c.post("/api/auth/login", json={"password": "nope"}).status_code == 401
+        assert c.get("/api/state").status_code == 401
+        r = c.post("/api/auth/login", json={"password": "correct horse"})
+        assert r.status_code == 200 and "httponly" in r.headers["set-cookie"].lower() and "samesite=strict" in r.headers["set-cookie"].lower()
+        assert c.get("/api/state").status_code == 200
+        assert c.get("/api/auth/session").json()["authenticated"] is True
+        c.post("/api/auth/logout")
+        assert c.get("/api/state").status_code == 401
+
+
+def test_login_rejects_forged_and_expired_tokens_and_throttles_guessing():
+    from stratagy import auth
+
+    assert auth.valid_token("k" * 40, auth.make_token("k" * 40, 60)) is True
+    assert auth.valid_token("other" * 10, auth.make_token("k" * 40, 60)) is False
+    assert auth.valid_token("k" * 40, auth.make_token("k" * 40, 60, now=1_000.0)) is False  # expired long ago
+    assert auth.valid_token("k" * 40, "garbage") is False
+    with TestClient(_auth_app()) as c:
+        codes = [c.post("/api/auth/login", json={"password": f"guess{i}"}).status_code for i in range(12)]
+        assert 429 in codes
+        assert c.post("/api/auth/login", json={"password": "correct horse"}).status_code == 429  # still throttled
+
+
+def test_live_provider_refuses_to_start_without_a_login():
+    import pytest
+
+    with pytest.raises(RuntimeError, match="requires a login"):
+        create_app(Settings(provider="kite"), autorun=False)
+    with pytest.raises(RuntimeError, match="AUTH_SECRET"):
+        create_app(Settings(provider="simulator", auth_password_hash="x"), autorun=False)

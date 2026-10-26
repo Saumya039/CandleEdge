@@ -27,6 +27,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T>(path: string, body: unknown) => request<T>(path, { method: "POST", body: JSON.stringify(body) });
 
 const realApi = {
+  authSession: () => request<{ required: boolean; authenticated: boolean }>("/api/auth/session"),
+  login: (password: string) => post<{ authenticated: boolean }>("/api/auth/login", { password }),
+  logout: () => post<{ authenticated: boolean }>("/api/auth/logout", {}),
   state: () => request<AppState>("/api/state"),
   candles: (sym: string, tf: string) => request<ChartData>(`/api/underlyings/${sym}/candles?tf=${tf}&limit=400`),
   evaluation: (sym: string) => request<Evaluation | null>(`/api/underlyings/${sym}/evaluation`),

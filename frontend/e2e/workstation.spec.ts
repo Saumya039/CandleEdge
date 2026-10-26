@@ -109,5 +109,11 @@ test("mobile layout has no horizontal page scroll", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("watchlist")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
+  // On failure, name the elements that stick out so CI output shows the culprit.
+  const culprits = overflow > 1
+    ? await page.evaluate(() => [...document.querySelectorAll("body *")]
+        .filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1)
+        .slice(0, 8).map((e) => `${e.tagName.toLowerCase()}[${e.getAttribute("data-testid") ?? ""}].${String(e.className).slice(0, 60)} right=${Math.round(e.getBoundingClientRect().right)}`))
+    : [];
+  expect(overflow, `overflowing elements: ${JSON.stringify(culprits)}`).toBeLessThanOrEqual(1);
 });

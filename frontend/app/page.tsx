@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { usePoll } from "@/lib/usePoll";
 import type { Signal } from "@/lib/types";
@@ -18,6 +18,7 @@ import { SimControls } from "@/components/SimControls";
 import { Alerts } from "@/components/Alerts";
 import { Panel } from "@/components/ui";
 import { SignalPopup } from "@/components/SignalPopup";
+import { AuthGate } from "@/components/AuthGate";
 import { DemoBar } from "@/components/DemoBar";
 import { DEMO } from "@/lib/demo";
 
@@ -30,9 +31,11 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
-export default function Page() {
+function Workstation() {
   const state = usePoll(api.state, 1000);
   const s = state.data;
+  // Session cookie expired while the page was open: reload so the password form appears.
+  useEffect(() => { if (state.error === "login required") window.location.reload(); }, [state.error]);
   const [symChoice, setSym] = useState<string>("");
   const sym = symChoice || (s?.watchlist[0]?.symbol ?? "");
   const [tf, setTf] = useState("5m");
@@ -103,5 +106,13 @@ export default function Page() {
       )}
       <SignalPopup signals={sigs} trades={tradesPoll.data ?? []} onShow={onSelect} />
     </main>
+  );
+}
+
+export default function Page() {
+  return (
+    <AuthGate>
+      <Workstation />
+    </AuthGate>
   );
 }

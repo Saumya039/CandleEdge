@@ -138,6 +138,14 @@ class Settings(BaseSettings):
     # setting is visibly OFF and is asserted by tests; turning it on does nothing.
     live_orders_enabled: bool = False
     cors_origins: str = "http://localhost:3000"
+    # Web login. Set AUTH_PASSWORD_HASH (see scripts/hash_password.py) and AUTH_SECRET to require a password.
+    auth_password_hash: str = ""
+    auth_secret: str = ""
+    auth_session_hours: int = 12
+    auth_cookie_secure: bool = True  # set false only for plain-http local testing
+    # A live data provider on an unprotected URL would expose your trading dashboard, so it refuses to start
+    # without a password unless you explicitly opt out (for example on a strictly local machine).
+    allow_insecure_no_auth: bool = False
     log_level: str = "INFO"
 
     @property

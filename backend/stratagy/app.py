@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from . import auth
 from . import indicators as ind
 from .backtest import run_backtest
 from .candles import resample
@@ -71,6 +72,10 @@ class RiskIn(BaseModel):
 class StrategyIn(BaseModel):
     trigger_tf: Literal["3m", "5m", "15m"] = "5m"
     sensitivity: Literal["conservative", "standard", "aggressive"] = "standard"
+
+
+class LoginIn(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
 
 
 class PauseIn(BaseModel):
@@ -137,6 +142,14 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                journal: Journal | None = None, autorun: bool = True) -> FastAPI:
     settings = settings or Settings()
     setup_logging(settings.log_level)
+    auth_on = bool(settings.auth_password_hash)
+    if auth_on and len(settings.auth_secret) < 32:
+        raise RuntimeError("AUTH_SECRET must be set to a random string of at least 32 characters when AUTH_PASSWORD_HASH is set")
+    if not auth_on and settings.provider != "simulator" and not settings.allow_insecure_no_auth:
+        raise RuntimeError("A live data provider requires a login: set AUTH_PASSWORD_HASH and AUTH_SECRET "
+                           "(see docs/DEPLOY.md), or set ALLOW_INSECURE_NO_AUTH=true for a strictly local machine")
+    login_limiter = RateLimiter(per_minute=8)
+    open_paths = {"/api/health", "/api/auth/login", "/api/auth/session", "/api/auth/logout"}
     st = AppState(settings, provider, journal, autorun)
 
     @asynccontextmanager
@@ -171,6 +184,9 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
     @app.middleware("http")
     async def mw(request: Request, call_next):
         rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
+        if (auth_on and request.url.path.startswith("/api/") and request.url.path not in open_paths
+                and not auth.valid_token(settings.auth_secret, request.cookies.get(auth.COOKIE))):
+            return JSONResponse({"detail": "login required"}, status_code=401, headers={"x-request-id": rid})
         if request.method == "POST" and not st.limiter.ok(request.client.host if request.client else "?"):
             return JSONResponse({"detail": "rate limit exceeded"}, status_code=429, headers={"x-request-id": rid})
         try:
@@ -184,6 +200,34 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         resp.headers["x-frame-options"] = "DENY"
         resp.headers["referrer-policy"] = "no-referrer"
         resp.headers["cache-control"] = "no-store"
+        return resp
+
+    @app.get("/api/auth/session")
+    async def auth_session(request: Request):
+        ok = (not auth_on) or auth.valid_token(settings.auth_secret, request.cookies.get(auth.COOKIE))
+        return {"required": auth_on, "authenticated": bool(ok)}
+
+    @app.post("/api/auth/login")
+    async def auth_login(body: LoginIn, request: Request):
+        if not auth_on:
+            return {"required": False, "authenticated": True}
+        # Global limit (the app usually sits behind a proxy, so the client address is not a reliable key).
+        if not login_limiter.ok("login"):
+            raise HTTPException(429, "too many login attempts; wait a minute")
+        if not auth.verify_password(body.password, settings.auth_password_hash):
+            if st.journal is not None:
+                st.journal.audit(datetime.now(IST), "login_failed", {})
+            raise HTTPException(401, "wrong password")
+        resp = JSONResponse({"required": True, "authenticated": True})
+        ttl = settings.auth_session_hours * 3600
+        resp.set_cookie(auth.COOKIE, auth.make_token(settings.auth_secret, ttl), max_age=ttl, httponly=True,
+                        samesite="strict", secure=settings.auth_cookie_secure, path="/")
+        return resp
+
+    @app.post("/api/auth/logout")
+    async def auth_logout():
+        resp = JSONResponse({"authenticated": False})
+        resp.delete_cookie(auth.COOKIE, path="/")
         return resp
 
     def eng() -> Engine:

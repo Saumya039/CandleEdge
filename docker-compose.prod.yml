@@ -1,0 +1,57 @@
+# Private live deployment on one server with a static IP (see docs/DEPLOY.md).
+# Only Caddy is exposed (80/443, automatic HTTPS). Backend, frontend and the database are internal.
+# Secrets come from .env.prod, which you create on the server and never commit. No order placement exists.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stratagy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: stratagy
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stratagy"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    volumes: ["./data:/app/data"]   # holds data/exchange_calendar.json
+    environment:
+      DATABASE_URL: postgresql+psycopg://stratagy:${POSTGRES_PASSWORD}@db:5432/stratagy
+      PROVIDER: ${PROVIDER:-kite}
+      WATCHLIST: ${WATCHLIST:-NIFTY,BANKNIFTY}
+      KITE_API_KEY: ${KITE_API_KEY:-}
+      KITE_ACCESS_TOKEN: ${KITE_ACCESS_TOKEN:-}
+      AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH:?set AUTH_PASSWORD_HASH in .env.prod}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env.prod}
+      AUTH_COOKIE_SECURE: "true"
+      LIVE_ORDERS_ENABLED: "false"
+
+  frontend:
+    build:
+      context: ./frontend
+      args: { BACKEND_URL: "http://backend:8000" }
+    restart: unless-stopped
+    depends_on: [backend]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [frontend]
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS (your domain) in .env.prod}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

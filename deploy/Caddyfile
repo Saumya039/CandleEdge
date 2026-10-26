@@ -1,0 +1,11 @@
+# Automatic HTTPS for the domain in SITE_ADDRESS (its DNS A record must point at this server).
+{$SITE_ADDRESS} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	reverse_proxy frontend:3000
+}

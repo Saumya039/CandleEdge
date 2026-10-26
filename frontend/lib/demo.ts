@@ -72,6 +72,9 @@ const readonly = (what: string) => async () => { throw new ApiError(0, `${what} 
 const ok = async () => ({ ok: true });
 
 export const demoApi: RealApi = {
+  authSession: async () => ({ required: false, authenticated: true }),
+  login: async () => ({ authenticated: true }),
+  logout: async () => ({ authenticated: true }),
   state: async () => {
     const t = await tape(); const f = frameOf(t);
     const st = f.state as AppState;
