@@ -92,7 +92,18 @@ export function PriceChart({
 
   useEffect(() => {
     const chart = chartRef.current, candles = candleRef.current;
-    if (!chart || !candles || !data) return;
+    if (!chart || !candles) return;
+    if (!data) {
+      // Another market's candles must never stay on screen under this market's title: clear until its own data arrives.
+      candles.setData([]);
+      volRef.current?.setData([]);
+      Object.values(lineRefs.current).forEach((l) => l.setData([]));
+      priceLines.current.forEach((l) => candles.removePriceLine(l));
+      priceLines.current = [];
+      markersRef.current?.setMarkers([]);
+      fitted.current = "";
+      return;
+    }
     candles.setData(data.candles.map((c) => ({ time: c.t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c })));
     volRef.current?.setData(data.candles.map((c) => ({ time: c.t as UTCTimestamp, value: c.v, color: c.c >= c.o ? "rgba(43,181,160,.35)" : "rgba(240,100,97,.35)" })));
     const setLine = (key: "ema9" | "ema21" | "ema50" | "vwap") => {
