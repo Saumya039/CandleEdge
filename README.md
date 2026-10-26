@@ -17,7 +17,7 @@ backtester, risk limits and daily reports. The product specification is [`CLAUDE
 | Kite Connect live data adapter (read-only) | Implemented, **untested against the real API** (no credentials were available) |
 | Live order placement / automated live trading | **Not implemented, by design** |
 | Compliance review (spec release gate) | **Not done** — required before any real-money or redistributed use, see [docs/COMPLIANCE.md](docs/COMPLIANCE.md) |
-| Exchange holiday calendar | Not hard-coded. Weekday-only plus a visible warning unless you supply `data/exchange_calendar.json` |
+| Exchange holiday calendar | 2026 NSE holiday list shipped (unverified copy, check against the NSE circular); Muhurat session not yet added |
 
 ## Easiest start (your own computer)
 
@@ -115,9 +115,10 @@ implementing `providers/base.py`.
 | `CORS_ORIGINS`, `LOG_LEVEL` | | Backend CORS and logging |
 | `NEXT_PUBLIC_API_URL` / `BACKEND_URL` | | Frontend API base / dev proxy target |
 
-Holidays and special sessions (for example Muhurat) go in `data/exchange_calendar.json`:
-`{"holidays": ["2026-11-08"], "special_sessions": [{"date": "...", "open": "18:15", "close": "19:15"}]}`. Verify dates
-against the official NSE circular; the app does not ship them.
+`backend/data/exchange_calendar.json` ships with the 2026 NSE trading-holiday list as published on the NSE site
+(copied by the project owner, not independently verified: check it against the official NSE circular). The Muhurat session
+on Sun 08-Nov-2026 is **not** included because its timings were not yet notified; add it under `special_sessions` as
+`{"date": "2026-11-08", "open": "HH:MM", "close": "HH:MM", "note": "Muhurat"}` once NSE announces them.
 
 ## How it works
 
@@ -158,6 +159,6 @@ CI (`.github/workflows/ci.yml`) runs the same checks.
 - Backtests use synthetic simulator data; no historical option-chain data is bundled, so results say nothing about real
   performance.
 - Costs, slippage and Greeks are estimates; real fills and charges will differ.
-- Holiday calendar must be supplied by you.
+- Holiday calendar covers 2026 only and is an unverified copy of the NSE list; update it for later years.
 - Single-user, no authentication: run it on localhost or behind your own access control.
 - Docker images unbuilt; compliance review pending. Do not use it for real-money decisions before that review.

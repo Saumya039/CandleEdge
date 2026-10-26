@@ -8,7 +8,8 @@ node_modules/
 .next/
 *.db
 *.sqlite
-data/
+data/*
+!data/exchange_calendar.json
 .env
 .env.local
 playwright-report/
