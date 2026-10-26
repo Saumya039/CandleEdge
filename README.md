@@ -24,7 +24,7 @@ backtester, risk limits and daily reports. The product specification is [`CLAUDE
 Install [Python 3.11+](https://www.python.org/downloads/) and [Node.js 20+](https://nodejs.org/), then:
 
 - **Practice mode** (simulated data, nothing to set up): double-click `start.bat` (Windows) or run `./start.sh` (Mac/Linux).
-- **Live mode** (Zerodha Kite data): run `python run.py --live`. It asks once for your Kite API key and secret and saves
+- **Live mode** (Zerodha Kite data): double-click `start-live.bat` (Windows), run `./start-live.sh` (Mac/Linux), or run `python run.py --live`. It asks once for your Kite API key and secret and saves
   them in `.env` on your computer only. In your Kite app settings set the Redirect URL to
   `http://127.0.0.1:8000/api/kite/callback`. Then, once each trading day, open the **Provider** tab and click
   **Connect Kite**. You log in on Kite's own page and the app takes it from there.
