@@ -164,7 +164,7 @@ def main() -> None:
     (BACKEND / "data").mkdir(exist_ok=True)
     env = {**os.environ, **read_env(), "LIVE_ORDERS_ENABLED": "false",
            "PUBLIC_BACKEND_URL": f"http://127.0.0.1:{API_PORT}", "APP_URL": f"http://localhost:{WEB_PORT}",
-           "CORS_ORIGINS": f"http://localhost:{WEB_PORT}"}
+           "CORS_ORIGINS": f"http://localhost:{WEB_PORT}", "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
     if args.live:
         env.update(PROVIDER="kite", ALLOW_INSECURE_NO_AUTH="true")  # bound to 127.0.0.1 only
     else:
@@ -192,7 +192,10 @@ def main() -> None:
             webbrowser.open(url)
         while api.poll() is None and web.poll() is None:
             time.sleep(1)
-        die("A part of the app stopped unexpectedly. See the files in the logs folder.")
+        dead = "backend" if api.poll() is not None else "frontend"
+        tail = (LOGS / f"{dead}.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()[-15:]
+        print(f"\n--- last lines of logs/{dead}.log ---\n" + "\n".join(tail) + "\n---")
+        die(f"The {dead} stopped unexpectedly. Send the lines above (hide any keys) so it can be fixed.")
     except KeyboardInterrupt:
         say("Stopping…")
     finally:
