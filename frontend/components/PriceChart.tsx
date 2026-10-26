@@ -34,6 +34,13 @@ const MARKER_STYLE: Record<string, { shape: "arrowUp" | "arrowDown" | "circle" |
   TIME_EXIT: { shape: "square", color: "#f2b84b", text: "time exit" },
 };
 
+/** The chart library throws on unsorted or duplicate times: sort ascending and keep the last point for a repeated time. */
+function ascending<T extends { time: UTCTimestamp }>(pts: T[]): T[] {
+  const byTime = new Map<number, T>();
+  for (const p of pts) byTime.set(p.time as number, p);
+  return [...byTime.values()].sort((a, b) => (a.time as number) - (b.time as number));
+}
+
 export function PriceChart({
   symbol, tf, onTf, data, signal, onRange, error,
 }: {
@@ -49,6 +56,13 @@ export function PriceChart({
   const priceLines = useRef<IPriceLine[]>([]);
   const fitted = useRef<string>("");
   const [legend, setLegend] = useState<string>("");
+  const errBox = useRef<HTMLDivElement>(null);
+  // Chart-library errors are written straight to this box (not state) so the effect never re-renders itself.
+  const showDrawError = (msg: string | null) => {
+    if (!errBox.current) return;
+    errBox.current.textContent = msg ? `Chart could not draw this market: ${msg}` : "";
+    errBox.current.hidden = !msg;
+  };
   const lookup = useRef<{ ema9: Map<number, number>; ema21: Map<number, number>; ema50: Map<number, number>; vwap: Map<number, number>; vol: Map<number, number> }>({
     ema9: new Map(), ema21: new Map(), ema50: new Map(), vwap: new Map(), vol: new Map(),
   });
@@ -93,6 +107,13 @@ export function PriceChart({
   useEffect(() => {
     const chart = chartRef.current, candles = candleRef.current;
     if (!chart || !candles) return;
+    try {
+      draw(chart, candles);
+      showDrawError(null);
+    } catch (e) {
+      showDrawError(e instanceof Error ? e.message : String(e));
+    }
+    function draw(chart: IChartApi, candles: ISeriesApi<"Candlestick">) {
     if (!data) {
       // Another market's candles must never stay on screen under this market's title: clear until its own data arrives.
       candles.setData([]);
@@ -104,12 +125,13 @@ export function PriceChart({
       fitted.current = "";
       return;
     }
-    candles.setData(data.candles.map((c) => ({ time: c.t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c })));
-    volRef.current?.setData(data.candles.map((c) => ({ time: c.t as UTCTimestamp, value: c.v, color: c.c >= c.o ? "rgba(43,181,160,.35)" : "rgba(240,100,97,.35)" })));
+    const good = data.candles.filter((c) => [c.t, c.o, c.h, c.l, c.c].every(Number.isFinite));
+    candles.setData(ascending(good.map((c) => ({ time: c.t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c }))));
+    volRef.current?.setData(ascending(good.map((c) => ({ time: c.t as UTCTimestamp, value: Number.isFinite(c.v) ? c.v : 0, color: c.c >= c.o ? "rgba(43,181,160,.35)" : "rgba(240,100,97,.35)" }))));
     const setLine = (key: "ema9" | "ema21" | "ema50" | "vwap") => {
       const pts = data[key];
       lookup.current[key] = new Map(pts.filter((p) => p.v !== null).map((p) => [p.t, p.v as number]));
-      lineRefs.current[key]?.setData(pts.map((p) => (p.v === null ? { time: p.t as UTCTimestamp } : { time: p.t as UTCTimestamp, value: p.v })));
+      lineRefs.current[key]?.setData(ascending(pts.filter((p) => Number.isFinite(p.t)).map((p) => (p.v === null || !Number.isFinite(p.v) ? { time: p.t as UTCTimestamp } : { time: p.t as UTCTimestamp, value: p.v }))));
     };
     (["ema9", "ema21", "ema50", "vwap"] as const).forEach(setLine);
     lookup.current.vol = new Map(data.candles.map((c) => [c.t, c.v]));
@@ -156,6 +178,7 @@ export function PriceChart({
       const n = data.candles.length;
       chart.timeScale().setVisibleLogicalRange({ from: Math.max(n - 90, 0), to: n + 6 });
     }
+    }
   }, [data, signal]);
 
   const lastPriceInfo = useMemo(() => (data?.candles.length ? data.candles[data.candles.length - 1] : null), [data]);
@@ -179,8 +202,9 @@ export function PriceChart({
         <div className="pointer-events-none absolute left-2 top-1 max-w-[95%] rounded bg-panel/80 px-1 text-[11px] text-muted num" aria-live="off" data-testid="chart-legend">
           {legend || (lastPriceInfo ? `Last closed ${tf} bar ${istDateTime(lastPriceInfo.t)}  C ${num(lastPriceInfo.c)}` : "")}
         </div>
-        {!data && <div className="absolute inset-0 grid place-items-center text-muted" data-testid="chart-empty">{error ? `No chart data: ${error}` : "Loading candles…"}</div>}
-        {data && data.candles.length === 0 && <div className="absolute inset-0 grid place-items-center text-muted" data-testid="chart-empty">No closed candles yet. Nothing is drawn until the feed delivers real or clearly simulated data.</div>}
+        <div ref={errBox} hidden className="absolute inset-x-0 bottom-0 z-10 bg-panel/90 px-3 py-1 text-[11px] text-down" data-testid="chart-error" />
+        {!data && <div className="absolute inset-0 z-10 grid place-items-center text-muted" data-testid="chart-empty">{error ? `No chart data: ${error}` : "Loading candles…"}</div>}
+        {data && data.candles.length === 0 && <div className="absolute inset-0 z-10 grid place-items-center text-muted" data-testid="chart-empty">No closed candles yet. Nothing is drawn until the feed delivers real or clearly simulated data.</div>}
       </div>
       <div className="flex flex-wrap items-center gap-3 border-t border-line px-3 py-1.5 text-[11px] text-muted">
         <span><i className="mr-1 inline-block h-[2px] w-4 align-middle" style={{ background: COLORS.ema9 }} />EMA9</span>
