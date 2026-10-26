@@ -29,6 +29,11 @@ Install [Python 3.11+](https://www.python.org/downloads/) and [Node.js 20+](http
   `http://127.0.0.1:8000/api/kite/callback`. Then, once each trading day, open the **Provider** tab and click
   **Connect Kite**. You log in on Kite's own page and the app takes it from there.
 
+- **Every F&O index and stock**: double-click `start-live-all-fno.bat` (or `python run.py --live --all-fno`). The list is read from
+  Kite's own instrument master each day, so it always matches what is currently eligible. The first start loads history for each
+  one and can take several minutes; the scan then covers all of them from one quote request per second. Untested against the real
+  API at that size.
+
 The first run installs and builds everything (a few minutes) and opens `http://localhost:3000`. Press Ctrl+C to stop.
 A **What to do now** line at the top tells you in plain words whether to wait, watch a forming setup, or act on one.
 The app only reads data and paper-trades. It never places orders.

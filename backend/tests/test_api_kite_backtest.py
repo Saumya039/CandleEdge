@@ -172,6 +172,19 @@ def make_kite(handler, key="k", token="t"):
     return KiteProvider(key, token, ["NIFTY"], transport=httpx.MockTransport(handler), poll_interval_s=0.05)
 
 
+def test_all_fno_watchlist_expands_from_the_instrument_master_indices_first():
+    today = datetime.now(IST).date()
+    p = KiteProvider("k", "t", ["ALL_FNO", "NIFTY"])
+    exp = (today + timedelta(days=20)).isoformat()
+    old = (today - timedelta(days=2)).isoformat()
+    p._instruments = [
+        {"segment": "NFO-FUT", "name": n, "expiry": e, "tradingsymbol": n + "FUT", "exchange": "NFO", "instrument_token": str(i),
+         "instrument_type": "FUT", "lot_size": "1", "tick_size": "0.05", "strike": "0"}
+        for i, (n, e) in enumerate([("TCS", exp), ("BANKNIFTY", exp), ("RELIANCE", exp), ("NIFTY", exp), ("DELISTED", old)], 1)]
+    p._build_specs()
+    assert [u.symbol for u in p.underlyings()] == ["NIFTY", "BANKNIFTY", "RELIANCE", "TCS"]
+
+
 def test_kite_without_credentials_gives_explicit_setup_state_not_fake_data():
     p = KiteProvider("", "", ["NIFTY"])
     h = p.get_health()

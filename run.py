@@ -155,6 +155,7 @@ def wait_for(url: str, seconds: int) -> bool:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--all-fno", action="store_true", help="with --live: watch every F&O index and stock (slow first start)")
     ap.add_argument("--live", action="store_true", help="use Zerodha Kite live data instead of the simulator")
     ap.add_argument("--no-browser", action="store_true", help="do not open the browser")
     ap.add_argument("--rebuild", action="store_true", help="force a rebuild of the web app")
@@ -178,6 +179,9 @@ def main() -> None:
            "CORS_ORIGINS": f"http://localhost:{WEB_PORT}", "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
     if args.live:
         env.update(PROVIDER="kite", ALLOW_INSECURE_NO_AUTH="true")  # bound to 127.0.0.1 only
+        if args.all_fno:
+            env["WATCHLIST"] = "ALL_FNO"
+            say("Watching every F&O index and stock. The first start loads history for each one and can take several minutes.")
     else:
         env.update(PROVIDER="simulator", SIM_SPEED=env.get("SIM_SPEED", "60"))
     flags = {"creationflags": 0x00000200} if os.name == "nt" else {}  # own process group so Ctrl+C is ours to handle
@@ -188,7 +192,7 @@ def main() -> None:
                            stderr=subprocess.STDOUT, **flags)
     web = None
     try:
-        if not wait_for(f"http://127.0.0.1:{API_PORT}/api/health", 60):
+        if not wait_for(f"http://127.0.0.1:{API_PORT}/api/health", 900 if args.all_fno else 60):
             die("The backend did not start. Open logs/backend.log to see why.")
         web = subprocess.Popen([npx, "next", "start", "-p", str(WEB_PORT)], cwd=FRONTEND,
                                env={**env, "BACKEND_URL": f"http://127.0.0.1:{API_PORT}"},

@@ -13,7 +13,7 @@ const REGIME_SHORT: Record<string, string> = {
 export function Watchlist({ rows, selected, onSelect }: { rows: WatchRow[]; selected: string; onSelect: (s: string) => void }) {
   return (
     <Panel title="Watchlist">
-      <ul data-testid="watchlist" className="divide-y divide-[#18202a]">
+      <ul data-testid="watchlist" className="max-h-[70vh] divide-y divide-[#18202a] overflow-y-auto">
         {rows.map((r) => (
           <li key={r.symbol} data-testid={`wl-${r.symbol}`} data-selected={r.symbol === selected}>
             <button onClick={() => onSelect(r.symbol)} className={`grid w-full grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 px-3 py-2 text-left ${r.symbol === selected ? "bg-blue/10" : "hover:bg-panel2"}`}>

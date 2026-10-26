@@ -178,10 +178,25 @@ class KiteProvider(MarketDataProvider):
             option_type=OptionType(itype) if itype in ("CE", "PE") else None,
             lot_size=int(row.get("lot_size") or 1), tick_size=float(row.get("tick_size") or 0.05), tradable=True)
 
+    INDEX_FIRST = ("NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50")
+
+    def _expand_watchlist(self, today: date) -> list[str]:
+        """`ALL_FNO` expands to every underlying that has a live futures contract in Kite's own instrument master
+        (indices first, then stocks A-Z), so eligibility always follows the current list rather than a hard-coded one."""
+        out: list[str] = []
+        for sym in self.watchlist:
+            if sym == "ALL_FNO":
+                names = {r.get("name", "") for r in self._instruments if r.get("segment") == "NFO-FUT" and r.get("expiry")
+                         and date.fromisoformat(r["expiry"]) >= today and r.get("name")}
+                out += [n for n in self.INDEX_FIRST if n in names] + sorted(names - set(self.INDEX_FIRST))
+            else:
+                out.append(sym)
+        return list(dict.fromkeys(out))
+
     def _build_specs(self) -> None:
         today = datetime.now(IST).date()
         self._specs = []
-        for sym in self.watchlist:
+        for sym in self._expand_watchlist(today):
             futs = [r for r in self._instruments if r.get("segment") == "NFO-FUT" and r.get("name") == sym
                     and r.get("expiry") and date.fromisoformat(r["expiry"]) >= today]
             if not futs:
