@@ -134,6 +134,10 @@ class Settings(BaseSettings):
     sim_speed: float = 60.0  # virtual seconds per real second
     kite_api_key: str = ""
     kite_access_token: str = ""
+    kite_api_secret: str = ""  # used only to exchange the daily login; never stored or sent to the browser
+    kite_token_file: str = "data/kite_token.json"
+    public_backend_url: str = "http://127.0.0.1:8000"  # what you register as the Kite redirect URL base
+    app_url: str = "http://localhost:3000"  # where the Kite login callback sends your browser afterwards
     # Live order placement is not implemented anywhere in this codebase. This flag exists so that the
     # setting is visibly OFF and is asserted by tests; turning it on does nothing.
     live_orders_enabled: bool = False

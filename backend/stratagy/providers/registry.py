@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 from ..config import Settings
 from .base import MarketDataProvider
@@ -13,7 +14,10 @@ from .simulator import SimulatorProvider
 def build_provider(s: Settings) -> MarketDataProvider:
     wl = [x.strip().upper() for x in s.watchlist.split(",") if x.strip()]
     if s.provider == "kite":
-        return KiteProvider(s.kite_api_key, s.kite_access_token, wl)
+        from .kite_auth import load_token
+
+        token = s.kite_access_token or load_token(Path(s.kite_token_file))
+        return KiteProvider(s.kite_api_key, token, wl)
     if s.provider != "simulator":
         raise ValueError(f"Unknown PROVIDER '{s.provider}' (use simulator or kite)")
     sim_date = date.fromisoformat(s.sim_date) if s.sim_date else None

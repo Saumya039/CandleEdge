@@ -110,3 +110,9 @@ export interface ProviderInfo {
   capability_matrix: Record<string, unknown>[];
   setup: Record<string, { name: string; env: string[]; needs: string[]; order_permissions: string }>;
 }
+
+export interface SetupStep { id: string; label: string; done: boolean; detail: string }
+export interface SetupStatus {
+  steps: SetupStep[]; next: string | null; provider: string; connect_url: string | null; kite_message: string | null;
+  redirect_url_to_register: string;
+}

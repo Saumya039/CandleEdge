@@ -21,3 +21,4 @@ frontend/out/
 .env.*
 !.env.example
 !.env.prod.example
+logs/

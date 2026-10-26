@@ -72,6 +72,10 @@ const readonly = (what: string) => async () => { throw new ApiError(0, `${what} 
 const ok = async () => ({ ok: true });
 
 export const demoApi: RealApi = {
+  setup: async () => ({
+    steps: [{ id: "mode", label: "Live data mode", done: false, detail: "This is a recorded replay. Run the app on your computer with the live launcher to use Kite." }],
+    next: "mode", provider: "demo", connect_url: null, kite_message: null, redirect_url_to_register: "",
+  }),
   authSession: async () => ({ required: false, authenticated: true }),
   login: async () => ({ authenticated: true }),
   logout: async () => ({ authenticated: true }),

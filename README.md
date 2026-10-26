@@ -19,7 +19,21 @@ backtester, risk limits and daily reports. The product specification is [`CLAUDE
 | Compliance review (spec release gate) | **Not done** — required before any real-money or redistributed use, see [docs/COMPLIANCE.md](docs/COMPLIANCE.md) |
 | Exchange holiday calendar | Not hard-coded. Weekday-only plus a visible warning unless you supply `data/exchange_calendar.json` |
 
-## Quickstart (simulator, no credentials)
+## Easiest start (your own computer)
+
+Install [Python 3.11+](https://www.python.org/downloads/) and [Node.js 20+](https://nodejs.org/), then:
+
+- **Practice mode** (simulated data, nothing to set up): double-click `start.bat` (Windows) or run `./start.sh` (Mac/Linux).
+- **Live mode** (Zerodha Kite data): run `python run.py --live`. It asks once for your Kite API key and secret and saves
+  them in `.env` on your computer only. In your Kite app settings set the Redirect URL to
+  `http://127.0.0.1:8000/api/kite/callback`. Then, once each trading day, open the **Provider** tab and click
+  **Connect Kite**. You log in on Kite's own page and the app takes it from there.
+
+The first run installs and builds everything (a few minutes) and opens `http://localhost:3000`. Press Ctrl+C to stop.
+A **What to do now** line at the top tells you in plain words whether to wait, watch a forming setup, or act on one.
+The app only reads data and paper-trades. It never places orders.
+
+## Quickstart (manual, simulator, no credentials)
 
 Requirements: Python 3.11+, Node 20+.
 

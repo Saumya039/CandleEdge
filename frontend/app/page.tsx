@@ -19,6 +19,8 @@ import { Alerts } from "@/components/Alerts";
 import { Panel } from "@/components/ui";
 import { SignalPopup } from "@/components/SignalPopup";
 import { AuthGate } from "@/components/AuthGate";
+import { NowBanner } from "@/components/NowBanner";
+import { SetupGuide } from "@/components/SetupGuide";
 import { DemoBar } from "@/components/DemoBar";
 import { DEMO } from "@/lib/demo";
 
@@ -70,6 +72,7 @@ function Workstation() {
       )}
       {s && (
         <>
+          <NowBanner s={s} />
           <div className="grid grid-cols-[minmax(0,1fr)] gap-3 xl:grid-cols-[320px_minmax(0,1fr)_400px]">
             <div className="flex min-w-0 flex-col gap-3">
               <Watchlist rows={s.watchlist} selected={sym} onSelect={(x) => { setSym(x); setPinned(null); }} />
@@ -97,7 +100,7 @@ function Workstation() {
             {tab === "journal" && <Journal onSelect={onSelect} />}
             {tab === "reports" && <Reports />}
             {tab === "settings" && <div className="grid gap-3 lg:grid-cols-2"><RiskPanel s={s} onChanged={refresh} /><StrategyPanel s={s} onChanged={refresh} /></div>}
-            {tab === "provider" && <ProviderPanel />}
+            {tab === "provider" && <><SetupGuide /><ProviderPanel /></>}
           </div>
           <footer className="px-1 pb-4 text-[11px] text-muted" data-testid="disclaimer">
             {s.disclaimer} Live order placement is <b>disabled</b> and not implemented. Times are Asia/Kolkata. <a className="underline" href="#privacy" onClick={(e) => e.preventDefault()}>Privacy policy (placeholder)</a>

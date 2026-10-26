@@ -10,12 +10,13 @@ import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from . import auth
@@ -26,6 +27,7 @@ from .config import RiskSettings, Settings
 from .engine import Engine
 from .journal import Journal
 from .models import IST, DataStatus, Direction
+from .providers import kite_auth
 from .providers.base import MarketDataProvider, ProviderUnavailable
 from .providers.registry import build_provider, capability_matrix
 from .providers.simulator import SimulatorProvider
@@ -136,6 +138,8 @@ class AppState:
         self.sim_paused = False
         self.limiter = RateLimiter()
         self.loop_error: str | None = None
+        self.kite_states: set[str] = set()
+        self.kite_message: str | None = None
 
 
 def create_app(settings: Settings | None = None, provider: MarketDataProvider | None = None,
@@ -149,7 +153,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         raise RuntimeError("A live data provider requires a login: set AUTH_PASSWORD_HASH and AUTH_SECRET "
                            "(see docs/DEPLOY.md), or set ALLOW_INSECURE_NO_AUTH=true for a strictly local machine")
     login_limiter = RateLimiter(per_minute=8)
-    open_paths = {"/api/health", "/api/auth/login", "/api/auth/session", "/api/auth/logout"}
+    open_paths = {"/api/health", "/api/auth/login", "/api/auth/session", "/api/auth/logout", "/api/kite/callback"}
     st = AppState(settings, provider, journal, autorun)
 
     @asynccontextmanager
@@ -229,6 +233,69 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         resp = JSONResponse({"authenticated": False})
         resp.delete_cookie(auth.COOKIE, path="/")
         return resp
+
+    # ---------------------------------------------------------------- setup guide and Kite login
+    def token_file() -> Path:
+        return Path(settings.kite_token_file)
+
+    @app.get("/api/setup")
+    async def setup_status():
+        sim = st.provider.name == "simulator"
+        health = st.provider.get_health()
+        token_today = bool(settings.kite_access_token or kite_auth.load_token(token_file()))
+        cal_ok = settings.calendar_file.exists()
+        steps = [
+            {"id": "mode", "label": "Live data mode", "done": not sim,
+             "detail": "Practice mode (simulated data). Start with the live launcher to use Kite." if sim else "Kite live mode"},
+            {"id": "key", "label": "Kite API key", "done": bool(settings.kite_api_key), "detail": "Set KITE_API_KEY (the launcher asks for it)"},
+            {"id": "secret", "label": "Kite API secret (server only)", "done": bool(settings.kite_api_secret),
+             "detail": "Set KITE_API_SECRET. It stays on this computer and is never shown in the browser."},
+            {"id": "token", "label": "Logged in to Kite today", "done": token_today,
+             "detail": "Click Connect Kite. Kite asks you to log in, then returns here."},
+            {"id": "calendar", "label": "NSE holiday calendar", "done": cal_ok,
+             "detail": "Optional but recommended: data/exchange_calendar.json. Without it only weekends are skipped."},
+            {"id": "risk", "label": "Risk limits confirmed", "done": bool(st.engine and st.engine.risk.confirmed),
+             "detail": "Open Risk & settings and confirm your limits."},
+            {"id": "feed", "label": "Live feed healthy", "done": (not sim) and health.status == DataStatus.LIVE,
+             "detail": health.message},
+        ]
+        needed = [x for x in steps if not x["done"] and x["id"] != "calendar"]
+        state = None
+        if st.provider.name == "kite" and settings.kite_api_key and settings.kite_api_secret:
+            state = uuid.uuid4().hex
+            st.kite_states = {state}  # one outstanding login attempt at a time
+        return {"steps": steps, "next": needed[0]["id"] if needed else None, "provider": st.provider.name,
+                "connect_url": kite_auth.login_url(settings.kite_api_key, state) if state else None,
+                "kite_message": st.kite_message, "redirect_url_to_register": f"{settings.public_backend_url}/api/kite/callback"}
+
+    @app.get("/api/kite/callback")
+    async def kite_callback(request_token: str = "", status: str = "", state: str = ""):
+        back = settings.app_url.rstrip("/") + "/"
+        if state not in st.kite_states:
+            st.kite_message = "Login link expired or not started here. Click Connect Kite again."
+            return RedirectResponse(back, status_code=303)
+        st.kite_states.discard(state)
+        if status != "success" or not request_token:
+            st.kite_message = "Kite login was not completed."
+            return RedirectResponse(back, status_code=303)
+        try:
+            token = await kite_auth.exchange_request_token(settings.kite_api_key, settings.kite_api_secret, request_token)
+        except ValueError as ex:
+            st.kite_message = str(ex)
+            return RedirectResponse(back, status_code=303)
+        kite_auth.save_token(token_file(), token)
+        settings.kite_access_token = token
+        old = st.engine
+        if old:
+            await old.stop()
+        st.provider = build_provider(settings)
+        cal = ExchangeCalendar.from_file(settings.calendar_file)
+        st.engine = Engine(st.provider, calendar=cal, journal=st.journal, risk=old.risk if old else RiskSettings())
+        await st.engine.start()
+        st.kite_message = "Connected to Kite for today." if st.engine.started else f"Kite login worked but the feed did not start: {st.engine.start_error}"
+        if st.journal is not None:
+            st.journal.audit(datetime.now(IST), "kite_login", {"started": st.engine.started})
+        return RedirectResponse(back, status_code=303)
 
     def eng() -> Engine:
         if st.engine is None:

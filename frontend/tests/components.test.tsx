@@ -156,3 +156,15 @@ describe("AuthGate", () => {
     spy.mockRestore(); login.mockRestore();
   });
 });
+
+describe("NowBanner message", () => {
+  it("tells the person what to do from the app's own state", async () => {
+    const { nowMessage } = await import("@/components/NowBanner");
+    const base = appState();
+    expect(nowMessage({ ...base, stale: true }).text).toMatch(/Do not act/);
+    expect(nowMessage({ ...base, stale: false, risk_settings: { ...base.risk_settings, confirmed: false } }).text).toMatch(/confirm your limits/);
+    const ready = { ...base, stale: false, badge: "SIMULATION" as const, phase: "TRADING", risk_settings: { ...base.risk_settings, confirmed: true }, risk_state: { ...base.risk_state, paused: false } };
+    expect(nowMessage({ ...ready, active_signals: [] }).text).toMatch(/Nothing to do/);
+    expect(nowMessage({ ...ready, active_signals: [{ ...signal(), state: "TRIGGERED" }] }).text).toMatch(/Buy at or below/);
+  });
+});

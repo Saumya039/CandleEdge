@@ -297,3 +297,48 @@ def test_live_provider_refuses_to_start_without_a_login():
         create_app(Settings(provider="kite"), autorun=False)
     with pytest.raises(RuntimeError, match="AUTH_SECRET"):
         create_app(Settings(provider="simulator", auth_password_hash="x"), autorun=False)
+
+
+# ------------------------------------------------------------------ Kite login callback and setup guide
+def test_kite_token_file_is_per_day_and_private(tmp_path):
+    from stratagy.providers import kite_auth
+
+    f = tmp_path / "t.json"
+    now = datetime(2026, 10, 26, 10, 0, tzinfo=IST)
+    kite_auth.save_token(f, "abc", now)
+    assert kite_auth.load_token(f, now) == "abc"
+    assert kite_auth.load_token(f, now + timedelta(days=1)) == ""  # yesterday's token is expired
+    assert (f.stat().st_mode & 0o077) == 0  # owner-only
+    assert "secret" not in f.read_text()
+
+
+def test_kite_login_callback_checks_state_saves_token_and_starts_feed(tmp_path, monkeypatch):
+    import stratagy.app as appmod
+    from stratagy.providers import kite_auth
+
+    async def fake_exchange(key, secret, rt, transport=None):
+        assert (key, secret, rt) == ("k", "s", "rt1")
+        return "tok-today"
+
+    monkeypatch.setattr(kite_auth, "exchange_request_token", fake_exchange)
+    today = datetime.now(IST).date()
+    monkeypatch.setattr(appmod, "build_provider", lambda s: make_kite(kite_handler(today), token=s.kite_access_token))
+    cfg = Settings(provider="kite", kite_api_key="k", kite_api_secret="s", allow_insecure_no_auth=True,
+                   kite_token_file=str(tmp_path / "tok.json"), app_url="http://localhost:3000")
+    app = create_app(cfg, provider=KiteProvider("k", "", ["NIFTY"]), journal=Journal("sqlite://", create_tables=True), autorun=False)
+    with TestClient(app, follow_redirects=False) as c:
+        s1 = c.get("/api/setup").json()
+        assert s1["next"] == "token" and not [x for x in s1["steps"] if x["id"] == "token"][0]["done"]
+        assert "kite.zerodha.com" in s1["connect_url"] and "secret" not in s1["connect_url"].lower()
+        state = s1["connect_url"].split("state%3D")[1].split("&")[0]
+        bad = c.get("/api/kite/callback", params={"request_token": "rt1", "status": "success", "state": "forged"})
+        assert bad.status_code == 303 and not (tmp_path / "tok.json").exists()
+        ok = c.get("/api/kite/callback", params={"request_token": "rt1", "status": "success", "state": state})
+        assert ok.status_code == 303 and ok.headers["location"] == "http://localhost:3000/"
+        assert (tmp_path / "tok.json").exists()
+        s2 = c.get("/api/setup").json()
+        assert [x for x in s2["steps"] if x["id"] == "token"][0]["done"] is True
+        assert app.state.st.engine.started is True
+        replay = c.get("/api/kite/callback", params={"request_token": "rt1", "status": "success", "state": state})
+        assert "expired" in (app.state.st.kite_message or "")  # state is single-use
+        assert replay.status_code == 303

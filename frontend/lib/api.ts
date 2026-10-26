@@ -1,4 +1,4 @@
-import type { AppState, ChainData, ChartData, Evaluation, PaperTrade, ProviderInfo, SessionReport, Signal } from "./types";
+import type { SetupStatus, AppState, ChainData, ChartData, Evaluation, PaperTrade, ProviderInfo, SessionReport, Signal } from "./types";
 
 import { ApiError } from "./errors";
 import { demoApi, DEMO } from "./demo";
@@ -27,6 +27,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T>(path: string, body: unknown) => request<T>(path, { method: "POST", body: JSON.stringify(body) });
 
 const realApi = {
+  setup: () => request<SetupStatus>("/api/setup"),
   authSession: () => request<{ required: boolean; authenticated: boolean }>("/api/auth/session"),
   login: (password: string) => post<{ authenticated: boolean }>("/api/auth/login", { password }),
   logout: () => post<{ authenticated: boolean }>("/api/auth/logout", {}),
