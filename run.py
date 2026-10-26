@@ -13,6 +13,7 @@ import getpass
 import hashlib
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -135,6 +136,12 @@ def ask_kite_credentials() -> None:
     say("Saved to .env")
 
 
+def port_busy(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
+        sk.settimeout(0.5)
+        return sk.connect_ex(("127.0.0.1", port)) == 0
+
+
 def wait_for(url: str, seconds: int) -> bool:
     end = time.time() + seconds
     while time.time() < end:
@@ -160,6 +167,10 @@ def main() -> None:
     setup_backend()
     setup_frontend(npm, args.rebuild)
 
+    for port in (API_PORT, WEB_PORT):
+        if port_busy(port):
+            die(f"Port {port} is already in use, so CandleEdge is probably still running in another black window. "
+                "Close every CandleEdge / command window (or restart the computer) and start again.")
     LOGS.mkdir(exist_ok=True)
     (BACKEND / "data").mkdir(exist_ok=True)
     env = {**os.environ, **read_env(), "LIVE_ORDERS_ENABLED": "false",
