@@ -5,6 +5,7 @@ IST for a live provider), so the same code path serves the simulator, replay/bac
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import deque
 from datetime import date, datetime, timedelta
@@ -270,6 +271,7 @@ class Engine:
             due = st.new_candle or st.last_eval_at is None or (now - st.last_eval_at).total_seconds() >= self.eval_interval_s
             if due:
                 await self._evaluate(und, st, now, phase)
+                await asyncio.sleep(0)  # let API requests run between underlyings so the UI stays responsive with 200+ names
         for sig in list(self.signals.values()):
             if not sig.closed:
                 await self._manage(sig, now, phase)
