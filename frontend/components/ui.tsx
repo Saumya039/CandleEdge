@@ -5,7 +5,7 @@ import { STATE_LABEL, dirLabel } from "@/lib/format";
 export function Panel({ title, right, children, className = "" }: { title: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={`panel ${className}`}>
-      <div className="panel-h"><span>{title}</span><span className="flex items-center gap-2 normal-case tracking-normal">{right}</span></div>
+      <div className="panel-h"><span>{title}</span><span className="flex flex-wrap items-center gap-2 normal-case tracking-normal">{right}</span></div>
       {children}
     </section>
   );

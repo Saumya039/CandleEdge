@@ -35,7 +35,7 @@ html, body { background: var(--bg); color: var(--text); font-family: var(--font-
 body { font-size: 13px; line-height: 1.45; }
 .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
-.panel-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border);
+.panel-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 8px 12px; border-bottom: 1px solid var(--border);
   font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 .btn { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 12px; }
 .btn:hover:not(:disabled) { border-color: #3a4a5d; }
