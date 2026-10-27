@@ -120,3 +120,19 @@ def resample(candles_1m: list[Candle], tf: Timeframe) -> list[Candle]:
         )
     out.sort(key=lambda c: c.ts)
     return out
+
+
+def forming_bar(closed_1m: list[Candle], current: Candle | None, tf: Timeframe) -> Candle | None:
+    """The still-open `tf` bar: the live 1m candle plus the closed 1m candles of the same bucket and day.
+    For display only: strategy and indicators never see it. Missing minutes stay missing (quality='gap')."""
+    if current is None:
+        return None
+    n = TF_MINUTES[tf]
+    key = (current.ts.date(), _slot(current.ts, n))
+    items = [c for c in closed_1m if c.ts < current.ts and (c.ts.date(), _slot(c.ts, n)) == key] + [current]
+    start = datetime.combine(key[0], datetime.min.time(), IST) + timedelta(minutes=SESSION_OPEN_MIN + key[1] * n)
+    return Candle(
+        instrument_id=items[0].instrument_id, timeframe=tf, ts=start, open=items[0].open,
+        high=max(c.high for c in items), low=min(c.low for c in items), close=items[-1].close,
+        volume=sum(c.volume for c in items), source=items[0].source, quality="ok" if len(items) == n else "gap",
+    )

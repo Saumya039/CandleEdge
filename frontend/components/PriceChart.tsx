@@ -126,7 +126,11 @@ export function PriceChart({
       return;
     }
     const good = data.candles.filter((c) => [c.t, c.o, c.h, c.l, c.c].every(Number.isFinite));
-    candles.setData(ascending(good.map((c) => ({ time: c.t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c }))));
+    const f = data.forming && [data.forming.t, data.forming.o, data.forming.h, data.forming.l, data.forming.c].every(Number.isFinite) ? data.forming : null;
+    // The still-forming bar is drawn faded and is display-only: signals and indicators use closed candles.
+    const formingPt = f ? [{ time: f.t as UTCTimestamp, open: f.o, high: f.h, low: f.l, close: f.c,
+      color: f.c >= f.o ? "rgba(43,181,160,.45)" : "rgba(240,100,97,.45)", borderColor: f.c >= f.o ? "#2bb5a0" : "#f06461", wickColor: f.c >= f.o ? "#2bb5a0" : "#f06461" }] : [];
+    candles.setData(ascending([...good.map((c) => ({ time: c.t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c })), ...formingPt]));
     volRef.current?.setData(ascending(good.map((c) => ({ time: c.t as UTCTimestamp, value: Number.isFinite(c.v) ? c.v : 0, color: c.c >= c.o ? "rgba(43,181,160,.35)" : "rgba(240,100,97,.35)" }))));
     const setLine = (key: "ema9" | "ema21" | "ema50" | "vwap") => {
       const pts = data[key];
@@ -185,7 +189,7 @@ export function PriceChart({
 
   return (
     <Panel
-      title={<span>{symbol} · underlying · closed candles only</span>}
+      title={<span>{symbol} · underlying · last candle forming live (faded), signals use closed candles</span>}
       right={
         <>
           {data && (data.label === "SIMULATED" ? <SimTag /> : <span className="tag text-up border-up/60">{data.label}</span>)}

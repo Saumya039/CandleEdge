@@ -272,3 +272,22 @@ def test_one_stale_name_does_not_flag_the_whole_feed_but_blocks_that_name():
         assert eng.is_stale(now)  # nothing fresh anywhere: fail closed
 
     asyncio.run(go())
+
+
+def test_forming_bar_merges_open_bucket_and_never_enters_closed_series():
+    from datetime import datetime
+
+    from stratagy.candles import forming_bar
+    from stratagy.models import IST, Candle
+
+    def c(h, m, o, hi, lo, cl):
+        return Candle(instrument_id="X", timeframe="1m", ts=datetime(2026, 10, 27, h, m, tzinfo=IST),
+                      open=o, high=hi, low=lo, close=cl, volume=10, source="t")
+
+    closed = [c(9, 15, 100, 102, 99, 101), c(9, 16, 101, 105, 100, 104)]
+    cur = c(9, 17, 104, 106, 103, 105)
+    f = forming_bar(closed, cur, "5m")
+    assert f.ts == datetime(2026, 10, 27, 9, 15, tzinfo=IST)
+    assert (f.open, f.high, f.low, f.close, f.volume) == (100, 106, 99, 105, 30)
+    assert f.quality == "gap"  # only 3 of 5 minutes present: never presented as complete
+    assert forming_bar(closed, None, "5m") is None

@@ -74,6 +74,7 @@ export interface ChartData {
   markers: { t: number; state: SignalState; direction: Direction; signal_id: string; price: number | null }[];
   plans: { signal_id: string; state: SignalState; direction: Direction; active: boolean; entry_lo: number; entry_hi: number;
     invalidation: number; t1: number; t2: number; created_t: number }[];
+  forming?: { t: number; o: number; h: number; l: number; c: number; v: number } | null;
   ema_periods: number[];
 }
 export interface ChainSide {

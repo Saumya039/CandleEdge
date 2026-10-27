@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from . import auth
 from . import indicators as ind
 from .backtest import run_backtest
-from .candles import resample
+from .candles import forming_bar, resample
 from .config import RiskSettings, Settings
 from .engine import Engine
 from .journal import Journal
@@ -691,6 +691,9 @@ def build_chart(e: Engine, sym: str, tf: str, limit: int) -> dict[str, Any]:
                       "invalidation": pl.invalidation_underlying, "t1": pl.target1_underlying, "t2": pl.target2_underlying,
                       "created_t": int(s.created_ts.timestamp())})
     forming = e.forming_candle(sym)
+    fbar = forming_bar(all1, forming, tf)  # type: ignore[arg-type]
+    if fbar is not None and keep and fbar.ts <= keep[-1].ts:
+        fbar = None
     return {
         "symbol": sym, "timeframe": tf, "label": "SIMULATED" if e.provider.name in ("simulator", "replay") else e.provider.get_health().status.value,
         "candles": [{"t": int(b.ts.timestamp()), "o": b.open, "h": b.high, "l": b.low, "c": b.close, "v": b.volume,
@@ -700,6 +703,8 @@ def build_chart(e: Engine, sym: str, tf: str, limit: int) -> dict[str, Any]:
         "levels": levels, "markers": markers, "plans": plans,
         "forming_1m": None if not forming else {"t": int(forming.ts.timestamp()), "o": forming.open, "h": forming.high,
                                               "l": forming.low, "c": forming.close},
+        "forming": None if fbar is None else {"t": int(fbar.ts.timestamp()), "o": fbar.open, "h": fbar.high,
+                                              "l": fbar.low, "c": fbar.close, "v": fbar.volume},
         "ema_periods": [p.ema_fast, p.ema_mid, p.ema_slow],
     }
 

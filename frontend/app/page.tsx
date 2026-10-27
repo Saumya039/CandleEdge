@@ -46,7 +46,7 @@ function Workstation() {
   const [range, setRange] = useState<VisibleRange>(null);
 
 
-  const chart = usePoll(() => api.candles(sym, tf), 2000, !!sym, [sym, tf]);
+  const chart = usePoll(() => api.candles(sym, tf), 1000, !!sym, [sym, tf]);
   const evalr = usePoll(() => api.evaluation(sym), 2000, !!sym, [sym]);
   const signals = usePoll(api.signals, 2500);
   const tradesPoll = usePoll(api.trades, 3000);
