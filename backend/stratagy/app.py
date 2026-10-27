@@ -573,7 +573,7 @@ def build_state(e: Engine, st: AppState) -> dict[str, Any]:
         next_ev = {"label": "Entry cutoff", "ts": e._cutoff_dt(now).isoformat(),
                    "seconds": (e._cutoff_dt(now) - now).total_seconds()}
     wl = []
-    for sym, u in e.u.items():
+    for sym, u in list(e.u.items()):
         closed = u.builder.closed_list()
         ev = u.latest_eval
         last = u.last_ltp
@@ -625,7 +625,7 @@ def build_state(e: Engine, st: AppState) -> dict[str, Any]:
         "calendar": {"verified": mkt_session.calendar_verified, "note": mkt_session.note,
                      "open": mkt_session.open.isoformat() if mkt_session.open else None,
                      "close": mkt_session.close.isoformat() if mkt_session.close else None},
-        "risk_settings": risk, "risk_state": e.risk_state.model_dump(mode="json"),
+        "history_loading": e.history_loading, "risk_settings": risk, "risk_state": e.risk_state.model_dump(mode="json"),
         "strategy": {"version": e.p.version, "trigger_tf": e.p.trigger_tf, "htf": e.p.htf, "sensitivity": e.sensitivity},
         "watchlist": wl,
         "active_signals": [s.model_dump(mode="json") for s in e.signals.values() if not s.closed],

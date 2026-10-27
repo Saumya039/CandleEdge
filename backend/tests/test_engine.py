@@ -291,3 +291,21 @@ def test_forming_bar_merges_open_bucket_and_never_enters_closed_series():
     assert (f.open, f.high, f.low, f.close, f.volume) == (100, 106, 99, 105, 30)
     assert f.quality == "gap"  # only 3 of 5 minutes present: never presented as complete
     assert forming_bar(closed, None, "5m") is None
+
+
+def test_start_loads_priority_names_first_and_the_rest_in_the_background():
+    from stratagy.engine import Engine
+    from stratagy.providers.simulator import SimulatorProvider
+
+    prov = SimulatorProvider(seed=1)
+    eng = Engine(prov, fast_start_names=1)
+
+    async def go():
+        await eng.start()
+        assert eng.started and len(eng.u) == 1 and eng.history_loading is not None
+        for _ in range(100):
+            await asyncio.sleep(0)
+        assert len(eng.u) == len(prov.underlyings()) and eng.history_loading is None
+        await eng.stop()
+
+    asyncio.run(go())

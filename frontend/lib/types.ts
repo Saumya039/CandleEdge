@@ -57,6 +57,7 @@ export interface AppState {
     accept_delayed: boolean; start_error: string | null;
   };
   calendar: { verified: boolean; note: string; open: string | null; close: string | null };
+  history_loading?: { loaded: number; total: number } | null;
   risk_settings: RiskSettings; risk_state: RiskState;
   strategy: { version: string; trigger_tf: string; htf: string; sensitivity: string };
   watchlist: WatchRow[]; active_signals: Signal[]; signal_count: number; open_trades: PaperTrade[]; alerts: Alert[];

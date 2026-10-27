@@ -57,6 +57,7 @@ export function StatusBar({ s, error, onPause }: { s: AppState | null; error: st
       )}
       {!s.calendar.verified && !d.is_simulated && <Banner tone="warn">{s.calendar.note || "Exchange calendar not configured: holidays unverified."}</Banner>}
       {s.risk_state.paused && <Banner tone="warn" testId="pause-banner">Trading PAUSED ({s.risk_state.pause_reason || "manual"}): no new paper entries. Existing paper positions are still managed.</Banner>}
+      {s.history_loading && <Banner tone="info" testId="history-loading">Still loading history for the remaining F&amp;O names ({s.history_loading.loaded} of {s.history_loading.total} ready). NIFTY, BANKNIFTY and the other first names already work; the list fills in as they load.</Banner>}
       {s.risk_settings.defaults_in_use && <Banner tone="info" testId="risk-defaults">Paper trading on DEFAULT risk limits: Rs {s.risk_settings.max_risk_per_trade.toLocaleString("en-IN")} risk per trade, {s.risk_settings.max_open_positions} open position, {s.risk_settings.max_trades_per_session} trades, Rs {s.risk_settings.max_daily_loss.toLocaleString("en-IN")} daily loss limit. Change them in Risk &amp; settings.</Banner>}
       {!s.risk_settings.confirmed && <Banner tone="info" testId="risk-unconfirmed">Risk settings are not confirmed, so no setup can be sized or taken. Open Risk &amp; settings and confirm your limits.</Banner>}
     </header>

@@ -94,6 +94,7 @@ class Engine:
         origin: str = "PAPER",
         chain_ttl_s: float = 5.0,
         eval_interval_s: float = 10.0,
+        fast_start_names: int = 12,
     ):
         self.provider = provider
         self.cal = calendar or ExchangeCalendar()
@@ -111,6 +112,9 @@ class Engine:
         self.origin = origin
         self.chain_ttl_s = chain_ttl_s
         self.eval_interval_s = eval_interval_s
+        self.fast_start_names = fast_start_names  # names loaded before 'started'; the rest load in the background
+        self.history_total = 0
+        self._bg_task: asyncio.Task | None = None
         self.u: dict[str, UState] = {}
         self.signals: dict[str, Signal] = {}
         self.trades: dict[str, PaperTrade] = {}
@@ -137,16 +141,12 @@ class Engine:
             await self.provider.connect()
             specs = self.provider.underlyings()
             source = self.provider.get_health().name.upper()
-            for spec in specs:
-                st = UState(spec, source)
-                hist = await self.provider.get_historical_candles(
-                    spec.signal_instrument.id, "1m", now - timedelta(days=6), now)
-                st.builder.seed_history(hist)
-                if hist:
-                    st.prev_close = hist[-1].close
-                self.u[spec.symbol] = st
-                h = await self.provider.subscribe_ticks([spec.signal_instrument.id], self._make_cb(spec.symbol))
-                self._handles.append(h)
+            self.history_total = len(specs)
+            for spec in specs[: self.fast_start_names]:
+                await self._load_one(spec, source, now)
+            rest = specs[self.fast_start_names:]
+            if rest:  # indices come first, so the busiest names are live right away; the others fill in
+                self._bg_task = asyncio.create_task(self._load_rest(rest, source, now))
             self.start_error = None
             self.started = True
         except ProviderError as e:
@@ -158,7 +158,33 @@ class Engine:
             self.journal.audit(now, "engine_start", {"provider": self.provider.name, "strategy": self.p.version,
                                                       "live_orders_enabled": False})
 
+    async def _load_one(self, spec, source: str, now: datetime) -> None:
+        st = UState(spec, source)
+        hist = await self.provider.get_historical_candles(spec.signal_instrument.id, "1m", now - timedelta(days=6), now)
+        st.builder.seed_history(hist)
+        if hist:
+            st.prev_close = hist[-1].close
+        self.u[spec.symbol] = st
+        h = await self.provider.subscribe_ticks([spec.signal_instrument.id], self._make_cb(spec.symbol))
+        self._handles.append(h)
+
+    async def _load_rest(self, specs: list, source: str, now: datetime) -> None:
+        for spec in specs:
+            try:
+                await self._load_one(spec, source, self.provider.now())  # fresh 'now': no hole before the first tick
+            except asyncio.CancelledError:
+                raise
+            except ProviderError as e:  # one name failing must not stop the others; it simply stays unwatched
+                self._health(now, "history_failed", f"{spec.symbol}: {e}")
+
+    @property
+    def history_loading(self) -> dict | None:
+        done = len(self.u)
+        return {"loaded": done, "total": self.history_total} if self._bg_task and not self._bg_task.done() else None
+
     async def stop(self) -> None:
+        if self._bg_task:
+            self._bg_task.cancel()
         for h in self._handles:
             h.cancel()
         self._handles.clear()
@@ -266,7 +292,7 @@ class Engine:
         now = self.provider.now()
         phase = self.phase(now)
         self._track_health(now)
-        for und, st in self.u.items():
+        for und, st in list(self.u.items()):
             if st.needs_reconcile and hasattr(self.provider, "reconcile"):
                 st.needs_reconcile = False
                 for c in await self.provider.reconcile(st.spec.signal_instrument.id, now):  # type: ignore[attr-defined]
@@ -302,7 +328,7 @@ class Engine:
         if not self.u:
             return False
         return all(st.last_tick_ts is None or (now - st.last_tick_ts).total_seconds() > self.dh.stale_after_s
-                   for st in self.u.values())
+                   for st in list(self.u.values()))
 
     def _gates(self, now: datetime, und: str) -> list[Check]:
         g = risk_gate(now, self.risk_state, self.risk, self._cutoff_dt(now))
@@ -541,7 +567,7 @@ class Engine:
         if self.journal:
             self.journal.register_strategy(self.p, now)
             self.journal.audit(now, "strategy_changed", {"from": old, "to": self.p.version})
-        for st in self.u.values():
+        for st in list(self.u.values()):
             st.last_eval_at = None
 
     def set_pause(self, paused: bool, reason: str, now: datetime) -> None:
