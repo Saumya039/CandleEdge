@@ -77,6 +77,7 @@ class UState:
         self.latest_eval: Evaluation | None = None
         self.last_terminal_ts: datetime | None = None
         self.premium_series: dict[str, list[dict]] = {}
+        self.bars_cache: tuple[tuple, list, float | None] | None = None  # (key, trigger-tf bars, last session VWAP) for the watchlist
 
 
 class Engine:

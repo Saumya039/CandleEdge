@@ -572,15 +572,22 @@ def build_state(e: Engine, st: AppState) -> dict[str, Any]:
                    "seconds": (e._cutoff_dt(now) - now).total_seconds()}
     wl = []
     for sym, u in e.u.items():
-        bars = resample(u.builder.closed_list(), e.p.trigger_tf)
+        closed = u.builder.closed_list()
         ev = u.latest_eval
         last = u.last_ltp
-        day_c = [c for c in u.builder.closed_list() if c.ts.date() == now.date()]
+        # Resampling six days of 1m candles for 200+ names on every poll was ~1 s of CPU: recompute only when a candle closes.
+        key = (len(closed), closed[-1].ts if closed else None, e.p.trigger_tf)
+        if u.bars_cache is not None and u.bars_cache[0] == key:
+            bars, vw = u.bars_cache[1], u.bars_cache[2]
+        else:
+            bars = resample(closed, e.p.trigger_tf)
+            vw = None
+            if bars:
+                v = ind.session_vwap(bars)
+                vw = None if np.isnan(v[-1]) else float(v[-1])
+            u.bars_cache = (key, bars, vw)
+        day_c = [c for c in closed if c.ts.date() == now.date()]
         day_open = day_c[0].open if day_c else None
-        vw = None
-        if bars:
-            v = ind.session_vwap(bars)
-            vw = None if np.isnan(v[-1]) else float(v[-1])
         sig = e.active_signal(sym)
         vol_ratio = None
         if len(bars) > e.p.volume_lookback + 1:
