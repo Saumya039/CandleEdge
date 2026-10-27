@@ -560,6 +560,8 @@ class Engine:
         self.session_report = session_report(self, now.date())
         if self.journal:
             self.journal.audit(now, "session_closed", {"date": now.date().isoformat(), "summary": self.session_report["summary"]})
+        if self.notifier and self.origin == "PAPER":
+            self.notifier.on_session_close(self.session_report, simulated=self.provider.name in ("simulator", "replay"))
         self._health(now, "session_closed", "Session closed; journal saved")
 
     # ---- user actions -----------------------------------------------------------------------------

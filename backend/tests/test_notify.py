@@ -61,9 +61,12 @@ def test_engine_sends_each_transition_once_and_survives_a_failing_channel():
     sent_states = [s for sig in eng.signals.values() for s in (t.to_state for t in sig.transitions)
                    if s in (SignalState.CANDIDATE, SignalState.TRIGGERED, SignalState.TARGET_1, SignalState.TARGET_2,
                             SignalState.STOPPED, SignalState.INVALIDATED, SignalState.TIME_EXIT, SignalState.EXPIRED)]
-    assert eng.signals and len(good.texts) == len(sent_states)  # exactly one message per state change
+    eod = [t for t in good.texts if "END OF DAY SUMMARY" in t]
+    assert len(eod) <= 1  # the day summary is sent at most once
+    signal_texts = [t for t in good.texts if "END OF DAY SUMMARY" not in t]
+    assert eng.signals and len(signal_texts) == len(sent_states)  # exactly one message per state change
     assert eng.notifier.last_error is not None or good.texts  # the failing channel was logged, not raised
-    assert good.texts[0].splitlines()[0].endswith("SETUP")  # the first message is the new setup itself
+    assert signal_texts[0].splitlines()[0].endswith("SETUP")  # the first message is the new setup itself
 
 
 def test_telegram_channel_posts_to_the_bot_api_with_the_configured_chat():
@@ -85,3 +88,27 @@ def test_several_of_your_own_chats_each_get_a_channel():
     n = build_notifier(Settings(telegram_bot_token="T", telegram_chat_id="111, 222"))
     assert [c._chat_id for c in n.channels] == ["111", "222"]
     assert not build_notifier(Settings(telegram_bot_token="", telegram_chat_id="111")).enabled
+
+
+def _report(setups: int) -> dict:
+    return {"date": "2026-10-27", "data_quality_incidents": [],
+            "summary": {"setups_generated": setups, "setups_by_final_state": {"EXPIRED": setups} if setups else {},
+                        "trades": 0, "wins": 0, "losses": 0, "net_pnl": 0.0}}
+
+
+def test_eod_summary_says_plainly_when_no_setup_fired():
+    from stratagy.notify import format_eod_message
+
+    text = format_eod_message(_report(0), simulated=False)
+    assert "Setups today: 0" in text and "Nothing was forced" in text
+    assert "SIMULATED" not in text
+    assert "placed no order" in text
+
+
+def test_eod_summary_is_sent_once_and_never_for_simulated_by_default():
+    n = Notifier([], send_simulated=False)
+    n.on_session_close(_report(2), simulated=False)  # no channels: silent
+    assert n.sent == []
+    sim = Notifier([TelegramChannel("t", "1")], send_simulated=False)
+    sim.on_session_close(_report(2), simulated=True)
+    assert sim.sent == []

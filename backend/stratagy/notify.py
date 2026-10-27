@@ -59,6 +59,28 @@ def format_signal_message(sig: Signal, to: SignalState, reason: str, *, simulate
     return "\n".join(lines)
 
 
+def format_eod_message(report: dict, *, simulated: bool) -> str:
+    """End-of-day summary built only from the session report the engine already computed."""
+    s = report["summary"]
+    states = s.get("setups_by_final_state", {})
+    lines = [f"{'[SIMULATED] ' if simulated else ''}END OF DAY SUMMARY - {report['date']}"]
+    if not s["setups_generated"]:
+        lines.append("Setups today: 0. The rules found no valid setup, so no call was sent. Nothing was forced.")
+    else:
+        lines.append(f"Setups sent: {s['setups_generated']}")
+        lines.append("Final status: " + ", ".join(f"{k} {v}" for k, v in sorted(states.items())))
+        if s["trades"]:
+            lines.append(f"Simulated results (assumed fills and costs): {s['wins']} won, {s['losses']} lost, "
+                         f"net {s['net_pnl']:+,.0f} after estimated costs")
+        else:
+            lines.append("No setup reached its entry zone in the app's simulation.")
+    inc = len(report.get("data_quality_incidents", []))
+    lines.append(f"Data-health incidents today: {inc}")
+    lines.append("Simulated results are not your real account. The app placed no order. "
+                 "Past results do not predict future results; any trade is your own decision.")
+    return "\n".join(lines)
+
+
 class Channel(Protocol):
     name: str
 
@@ -99,6 +121,16 @@ class Notifier:
         text = format_signal_message(sig, to, reason, simulated=simulated)
         if text is None:
             return
+        self.sent = (self.sent + [text])[-20:]
+        for ch in self.channels:
+            t = asyncio.get_running_loop().create_task(self._send(ch, text))
+            self._tasks.add(t)
+            t.add_done_callback(self._tasks.discard)
+
+    def on_session_close(self, report: dict, *, simulated: bool) -> None:
+        if not self.channels or (simulated and not self.send_simulated):
+            return
+        text = format_eod_message(report, simulated=simulated)
         self.sent = (self.sent + [text])[-20:]
         for ch in self.channels:
             t = asyncio.get_running_loop().create_task(self._send(ch, text))
