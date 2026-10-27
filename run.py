@@ -136,6 +136,42 @@ def ask_kite_credentials() -> None:
     say("Saved to .env")
 
 
+def telegram_setup() -> None:
+    """One-time: save your Telegram bot token and chat id in .env, then send a clearly-labelled test message."""
+    import json
+    import urllib.request
+
+    def call(token: str, method: str, payload: dict | None = None) -> dict:
+        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/{method}",
+                                     data=json.dumps(payload).encode() if payload else None,
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310 - fixed https host
+            return json.loads(r.read())
+
+    print("\nTelegram alerts setup (alerts go only to your own Telegram chat).\n"
+          "1. In Telegram, open @BotFather, send /newbot, and follow the steps. It gives you a token.\n"
+          "2. Open your new bot in Telegram and press Start (or send it any message).\n"
+          "The token is saved only in the file .env on this computer.\n")
+    token = getpass.getpass("Bot token (hidden as you type): ").strip()
+    if not token:
+        die("No token entered.")
+    try:
+        me = call(token, "getMe")
+        if not me.get("ok"):
+            die("Telegram did not accept that token. Check it and try again.")
+        input("Now send any message to your bot in Telegram, then press Enter here... ")
+        chats = {u["message"]["chat"]["id"]: u["message"]["chat"].get("first_name", "") for u in call(token, "getUpdates").get("result", [])
+                 if "message" in u}
+        if not chats:
+            die("No message from you was found. Send a message to the bot first, then run this again.")
+        chat_id = list(chats)[-1]
+        write_env({"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": str(chat_id)})
+        call(token, "sendMessage", {"chat_id": chat_id, "text": "TEST: CandleEdge alerts are connected. This is not a trade signal."})
+    except OSError as e:
+        die(f"Could not reach Telegram ({e}). Check your internet and try again.")
+    say("Saved. A test message was sent to your Telegram. Real setup alerts will arrive there from now on (live data only).")
+
+
 def port_busy(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
         sk.settimeout(0.5)
@@ -157,10 +193,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--all-fno", action="store_true", help="with --live: watch every F&O index and stock (slow first start)")
     ap.add_argument("--live", action="store_true", help="use Zerodha Kite live data instead of the simulator")
+    ap.add_argument("--telegram-setup", action="store_true", help="one-time setup of Telegram setup alerts, then exit")
     ap.add_argument("--no-browser", action="store_true", help="do not open the browser")
     ap.add_argument("--rebuild", action="store_true", help="force a rebuild of the web app")
     args = ap.parse_args()
 
+    if args.telegram_setup:
+        telegram_setup()
+        return
     npm = check_tools()
     npx = shutil.which("npx") or die("npx was not found. Reinstall Node.js from nodejs.org.")
     if args.live:

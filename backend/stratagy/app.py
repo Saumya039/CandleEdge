@@ -27,6 +27,7 @@ from .config import RiskSettings, Settings
 from .engine import Engine
 from .journal import Journal
 from .models import IST, DataStatus, Direction
+from .notify import Channel, Notifier, TelegramChannel
 from .providers import kite_auth
 from .providers.base import MarketDataProvider, ProviderUnavailable
 from .providers.registry import build_provider, capability_matrix
@@ -125,6 +126,13 @@ class RateLimiter:
         return True
 
 
+def build_notifier(settings: Settings) -> Notifier:
+    chans: list[Channel] = []
+    if settings.telegram_bot_token and settings.telegram_chat_id:
+        chans.append(TelegramChannel(settings.telegram_bot_token, settings.telegram_chat_id))
+    return Notifier(chans, send_simulated=settings.notify_simulated)
+
+
 class AppState:
     def __init__(self, settings: Settings, provider: MarketDataProvider | None = None, journal: Journal | None = None,
                  autorun: bool = True):
@@ -140,6 +148,7 @@ class AppState:
         self.loop_error: str | None = None
         self.kite_states: set[str] = set()
         self.kite_message: str | None = None
+        self.notifier = build_notifier(settings)
 
 
 def create_app(settings: Settings | None = None, provider: MarketDataProvider | None = None,
@@ -171,7 +180,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                 Base.metadata.create_all(st.journal.engine)
         cal = (ExchangeCalendar() if st.provider.name == "simulator"
                else ExchangeCalendar.from_file(settings.calendar_file))
-        st.engine = Engine(st.provider, calendar=cal, journal=st.journal,
+        st.engine = Engine(st.provider, calendar=cal, journal=st.journal, notifier=st.notifier,
                            risk=RiskSettings(confirmed=True, defaults_in_use=True) if settings.use_default_risk else None)
         await st.engine.start()
         if autorun:
@@ -291,7 +300,8 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             await old.stop()
         st.provider = build_provider(settings)
         cal = ExchangeCalendar.from_file(settings.calendar_file)
-        st.engine = Engine(st.provider, calendar=cal, journal=st.journal, risk=old.risk if old else RiskSettings())
+        st.engine = Engine(st.provider, calendar=cal, journal=st.journal, notifier=st.notifier,
+                           risk=old.risk if old else RiskSettings())
         await st.engine.start()
         st.kite_message = "Connected to Kite for today." if st.engine.started else f"Kite login worked but the feed did not start: {st.engine.start_error}"
         if st.journal is not None:
@@ -489,7 +499,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
             prov.restart(int(body.value) if body.value is not None else None)
             cal = ExchangeCalendar()
             keep_risk = old.risk if old else RiskSettings()
-            st.engine = Engine(prov, calendar=cal, journal=st.journal, risk=keep_risk)
+            st.engine = Engine(prov, calendar=cal, journal=st.journal, risk=keep_risk, notifier=st.notifier)
             await st.engine.start()
         return sim_state(st)
 

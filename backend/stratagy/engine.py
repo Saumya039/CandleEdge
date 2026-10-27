@@ -27,6 +27,7 @@ from .models import (
     SignalState,
     Tick,
 )
+from .notify import Notifier
 from .paper import PaperTrade, TradeStatus
 from .providers.base import MarketDataProvider, ProviderError, UnderlyingSpec
 from .risk import Check, RiskState, buy_fill, register_close, risk_gate, size_position
@@ -95,6 +96,7 @@ class Engine:
         chain_ttl_s: float = 5.0,
         eval_interval_s: float = 10.0,
         fast_start_names: int = 12,
+        notifier: Notifier | None = None,
     ):
         self.provider = provider
         self.cal = calendar or ExchangeCalendar()
@@ -112,6 +114,7 @@ class Engine:
         self.origin = origin
         self.chain_ttl_s = chain_ttl_s
         self.eval_interval_s = eval_interval_s
+        self.notifier = notifier
         self.fast_start_names = fast_start_names  # names loaded before 'started'; the rest load in the background
         self.history_total = 0
         self._bg_task: asyncio.Task | None = None
@@ -371,6 +374,11 @@ class Engine:
                         f"{p.entry_zone_underlying[0]:.2f}-{p.entry_zone_underlying[1]:.2f}, invalidation "
                         f"{p.invalidation_underlying:.2f}, R:R {p.rr_t1:.2f}", sig)
             self._persist_signal(sig, ev)
+            self._notify(sig, SignalState.CANDIDATE, "")
+
+    def _notify(self, sig: Signal, to: SignalState, reason: str) -> None:
+        if self.notifier and self.origin == "PAPER":
+            self.notifier.on_transition(sig, to, reason, simulated=self.provider.name in ("simulator", "replay"))
 
     def _persist_signal(self, sig: Signal, ev: Evaluation | None = None) -> None:
         if self.journal:
@@ -389,6 +397,7 @@ class Engine:
             if self.journal:
                 self.journal.audit(now, "signal_transition", {"signal": sig.id, "to": to.value, "reason": reason})
             self._persist_signal(sig)
+            self._notify(sig, to, reason)
             if sig.closed:
                 self.u[sig.underlying].last_terminal_ts = now
         return changed

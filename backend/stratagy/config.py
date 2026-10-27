@@ -135,6 +135,10 @@ class Settings(BaseSettings):
     sim_speed: float = 60.0  # virtual seconds per real second
     kite_api_key: str = ""
     kite_access_token: str = ""
+    # Personal alerts of new setups to YOUR own Telegram chat (create a bot with @BotFather). Secrets stay in .env.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    notify_simulated: bool = False  # simulated setups are never sent unless you turn this on (for testing the alert only)
     kite_stream: bool = True  # live WebSocket ticks; REST polling is only the fallback while the stream is down
     kite_api_secret: str = ""  # used only to exchange the daily login; never stored or sent to the browser
     kite_token_file: str = "data/kite_token.json"

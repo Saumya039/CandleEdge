@@ -168,3 +168,14 @@ CI (`.github/workflows/ci.yml`) runs the same checks.
 - Holiday calendar covers 2026 only and is an unverified copy of the NSE list; update it for later years.
 - Single-user, no authentication: run it on localhost or behind your own access control.
 - Docker images unbuilt; compliance review pending. Do not use it for real-money decisions before that review.
+
+## Setup alerts to your phone (Telegram)
+
+CandleEdge can send each new CALL/PUT setup to **your own** Telegram chat: contract, buy level, Target 1, Target 2 and stop
+loss, taken from the app's own trade plan (never invented). It also sends updates when a setup triggers, hits a target, stops
+out or expires.
+
+1. Run `telegram-setup.bat` (or `python run.py --telegram-setup`) once and follow the steps. The bot token is saved only in `.env`.
+2. Alerts are sent for **live-data** setups only. Simulated setups are not sent unless `NOTIFY_SIMULATED=true`.
+3. These are paper-trading signals, not advice, and no order is placed. Sending trade calls to other people can need SEBI
+   registration, so this feature deliberately sends to one chat id only (yours).
