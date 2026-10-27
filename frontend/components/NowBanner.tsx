@@ -16,14 +16,36 @@ export function nowMessage(s: AppState): { tone: "info" | "warn" | "bad" | "ok";
   return { tone: "info", text: "Nothing to do right now. No clear setup, and that is normal. The app will pop up an alert when one appears." };
 }
 
+/** Counts the first NO TRADE reason of every watched name (numbers masked) so a quiet screen explains itself. */
+export function blockerSummary(rows: AppState["watchlist"], top = 5): { reason: string; count: number }[] {
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    if (r.decision === "CANDIDATE" || !r.no_trade_reasons.length) continue;
+    const k = r.no_trade_reasons[0].replace(/-?\d+(\.\d+)?/g, "#").slice(0, 110);
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
+  return [...m.entries()].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count).slice(0, top);
+}
+
 const TONE = { info: "border-line", warn: "border-amber", bad: "border-down", ok: "border-up" } as const;
 
 export function NowBanner({ s }: { s: AppState }) {
   const m = nowMessage(s);
+  const why = s.active_signals.length === 0 ? blockerSummary(s.watchlist) : [];
   return (
-    <section className={`panel flex items-center gap-3 border-l-4 px-3 py-2 text-[14px] ${TONE[m.tone]}`} data-testid="now-banner" aria-live="polite">
-      <b className="whitespace-nowrap text-[11px] uppercase tracking-wider text-muted">What to do now</b>
-      <span>{m.text}</span>
+    <section className={`panel border-l-4 px-3 py-2 text-[14px] ${TONE[m.tone]}`} data-testid="now-banner" aria-live="polite">
+      <div className="flex items-center gap-3">
+        <b className="whitespace-nowrap text-[11px] uppercase tracking-wider text-muted">What to do now</b>
+        <span>{m.text}</span>
+      </div>
+      {why.length > 0 && (
+        <details className="mt-1 text-[12px] text-muted" data-testid="blockers">
+          <summary className="cursor-pointer">Why no setup right now ({s.watchlist.length} names checked)</summary>
+          <ul className="mt-1 list-disc pl-5">
+            {why.map((w) => <li key={w.reason}><b className="num text-ink">{w.count}</b> × {w.reason}</li>)}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }

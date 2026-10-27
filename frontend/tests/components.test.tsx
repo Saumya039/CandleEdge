@@ -168,3 +168,13 @@ describe("NowBanner message", () => {
     expect(nowMessage({ ...ready, active_signals: [{ ...signal(), state: "TRIGGERED" }] }).text).toMatch(/Buy at or below/);
   });
 });
+
+describe("blockerSummary", () => {
+  it("groups the first NO TRADE reason across names and masks numbers", async () => {
+    const { blockerSummary } = await import("@/components/NowBanner");
+    const row = (reason: string, decision = "NO_TRADE") => ({ decision, no_trade_reasons: [reason] }) as never;
+    const out = blockerSummary([row("Only 3 closed 5m bars"), row("Only 7 closed 5m bars"), row("Regime RANGE_CHOP: x"), row("ok", "CANDIDATE")]);
+    expect(out[0]).toEqual({ reason: "Only # closed #m bars", count: 2 });
+    expect(out).toHaveLength(2);
+  });
+});
