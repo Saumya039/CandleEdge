@@ -95,6 +95,7 @@ class RiskSettings(BaseModel):
     """User risk settings. Sizing is refused until `confirmed` is true (explicit user confirmation)."""
 
     confirmed: bool = False
+    defaults_in_use: bool = False  # True when the built-in paper limits run without the user having reviewed them
     capital: float = 500_000.0
     max_risk_per_trade: float = 5_000.0
     max_daily_loss: float = 15_000.0
@@ -150,6 +151,9 @@ class Settings(BaseSettings):
     # A live data provider on an unprotected URL would expose your trading dashboard, so it refuses to start
     # without a password unless you explicitly opt out (for example on a strictly local machine).
     allow_insecure_no_auth: bool = False
+    # Paper-only convenience: start with the built-in limits (Rs 5,000 risk per trade, 1 open position, 4 trades,
+    # Rs 15,000 daily loss) so setups appear without visiting Risk & settings. Shown on screen as DEFAULT LIMITS.
+    use_default_risk: bool = True
     log_level: str = "INFO"
 
     @property

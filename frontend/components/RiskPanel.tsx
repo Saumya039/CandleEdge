@@ -40,7 +40,7 @@ export function RiskPanel({ s, onChanged }: { s: AppState; onChanged: () => void
   };
   const rs = s.risk_state;
   return (
-    <Panel title="Risk & paper trading" right={<span className={`tag ${s.risk_settings.confirmed ? "text-up border-up/60" : "text-amber border-amber/60"}`} data-testid="risk-confirmed-tag">{s.risk_settings.confirmed ? "CONFIRMED" : "NOT CONFIRMED"}</span>}>
+    <Panel title="Risk & paper trading" right={<span className={`tag ${s.risk_settings.confirmed ? "text-up border-up/60" : "text-amber border-amber/60"}`} data-testid="risk-confirmed-tag">{s.risk_settings.defaults_in_use ? "DEFAULT LIMITS" : s.risk_settings.confirmed ? "CONFIRMED" : "NOT CONFIRMED"}</span>}>
       <div className="space-y-3 p-3">
         <div className="grid grid-cols-2 gap-2 text-[12px]" data-testid="risk-state">
           <div className="text-muted">Day P&amp;L (net, est.)</div><div className={`num text-right ${pnlClass(rs.realized_net + rs.unrealized)}`}>{rupees(rs.realized_net + rs.unrealized)}</div>

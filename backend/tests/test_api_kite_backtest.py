@@ -25,7 +25,7 @@ from stratagy.providers.simulator import SimulatorProvider
 @pytest.fixture
 def client():
     prov = SimulatorProvider(seed=5, sim_date=date(2026, 10, 23))
-    app = create_app(Settings(provider="simulator"), provider=prov, journal=Journal("sqlite://", create_tables=True), autorun=False)
+    app = create_app(Settings(provider="simulator", use_default_risk=False), provider=prov, journal=Journal("sqlite://", create_tables=True), autorun=False)
     with TestClient(app) as c:
         yield c, app.state.st
 
@@ -355,3 +355,16 @@ def test_kite_login_callback_checks_state_saves_token_and_starts_feed(tmp_path, 
         replay = c.get("/api/kite/callback", params={"request_token": "rt1", "status": "success", "state": state})
         assert "expired" in (app.state.st.kite_message or "")  # state is single-use
         assert replay.status_code == 303
+
+
+def test_default_risk_limits_are_on_by_default_labelled_and_replaced_when_the_user_saves():
+    prov = SimulatorProvider(seed=5, sim_date=date(2026, 10, 23))
+    app = create_app(Settings(provider="simulator"), provider=prov, journal=Journal("sqlite://", create_tables=True), autorun=False)
+    with TestClient(app) as c:
+        risk = c.get("/api/state").json()["risk_settings"]
+        assert risk["confirmed"] is True and risk["defaults_in_use"] is True  # paper only; shown as DEFAULT LIMITS
+        body = {k: v for k, v in risk.items() if k not in ("paper_square_off", "defaults_in_use")} | {"trading_cutoff": "15:10"}
+        resp = c.post("/api/settings/risk", json=body)
+        assert resp.status_code == 200, resp.text
+        saved = resp.json()
+        assert saved["defaults_in_use"] is False

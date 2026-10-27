@@ -17,7 +17,7 @@ export default defineConfig({
       cwd: "../backend",
       url: `http://localhost:${BACKEND_PORT}/api/health`,
       reuseExistingServer: false,
-      env: { PROVIDER: "simulator", SIM_SEED: "1", SIM_DATE: "2026-10-23", SIM_SPEED: "1", DATABASE_URL: "sqlite:////tmp/stratagy-e2e.db" },
+      env: { PROVIDER: "simulator", SIM_SEED: "1", SIM_DATE: "2026-10-23", SIM_SPEED: "1", USE_DEFAULT_RISK: "false", DATABASE_URL: "sqlite:////tmp/stratagy-e2e.db" },
       timeout: 60_000,
     },
     {

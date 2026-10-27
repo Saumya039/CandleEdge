@@ -39,7 +39,7 @@ export interface WatchRow {
   signal_id: string | null; dropped_out_of_order: number; dropped_duplicates: number;
 }
 export interface RiskSettings {
-  confirmed: boolean; capital: number; max_risk_per_trade: number; max_daily_loss: number; max_open_positions: number;
+  confirmed: boolean; defaults_in_use?: boolean; capital: number; max_risk_per_trade: number; max_daily_loss: number; max_open_positions: number;
   max_trades_per_session: number; max_premium_deployed: number; cooldown_after_losses: number; cooldown_minutes: number;
   trading_cutoff: string; paper_square_off: string; min_reward_risk: number; paper_enabled: boolean;
 }

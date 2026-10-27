@@ -171,7 +171,8 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
                 Base.metadata.create_all(st.journal.engine)
         cal = (ExchangeCalendar() if st.provider.name == "simulator"
                else ExchangeCalendar.from_file(settings.calendar_file))
-        st.engine = Engine(st.provider, calendar=cal, journal=st.journal)
+        st.engine = Engine(st.provider, calendar=cal, journal=st.journal,
+                           risk=RiskSettings(confirmed=True, defaults_in_use=True) if settings.use_default_risk else None)
         await st.engine.start()
         if autorun:
             st.task = asyncio.create_task(_runner(st))
@@ -254,7 +255,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
              "detail": "Click Connect Kite. Kite asks you to log in, then returns here."},
             {"id": "calendar", "label": "NSE holiday calendar", "done": cal_ok,
              "detail": "Optional but recommended: data/exchange_calendar.json. Without it only weekends are skipped."},
-            {"id": "risk", "label": "Risk limits confirmed", "done": bool(st.engine and st.engine.risk.confirmed),
+            {"id": "risk", "label": "Risk limits set", "done": bool(st.engine and st.engine.risk.confirmed),
              "detail": "Open Risk & settings and confirm your limits."},
             {"id": "feed", "label": "Live feed healthy", "done": (not sim) and health.status == DataStatus.LIVE,
              "detail": health.message},
@@ -439,6 +440,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         e = eng()
         data = body.model_dump()
         data["trading_cutoff"] = _hhmm(body.trading_cutoff)
+        data["defaults_in_use"] = False  # the user has now set these values themselves
         new = e.risk.model_copy(update=data)
         e.set_risk(new, e.provider.now())
         return new.model_dump(mode="json")
