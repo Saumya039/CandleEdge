@@ -189,7 +189,7 @@ export function PriceChart({
 
   return (
     <Panel
-      title={<span>{symbol} · underlying · last candle forming live (faded), signals use closed candles</span>}
+      title={<span>{symbol} · {tf} · last candle is live (faded); signals use closed candles only</span>}
       right={
         <>
           {data && (data.label === "SIMULATED" ? <SimTag /> : <span className="tag text-up border-up/60">{data.label}</span>)}
@@ -202,7 +202,7 @@ export function PriceChart({
       }
     >
       <div className="relative">
-        <div ref={host} className="h-[420px] w-full" data-testid="price-chart" />
+        <div ref={host} className="h-[56vh] min-h-[380px] w-full xl:h-[64vh]" data-testid="price-chart" />
         <div className="pointer-events-none absolute left-2 top-1 max-w-[95%] rounded bg-panel/80 px-1 text-[11px] text-muted num" aria-live="off" data-testid="chart-legend">
           {legend || (lastPriceInfo ? `Last closed ${tf} bar ${istDateTime(lastPriceInfo.t)}  C ${num(lastPriceInfo.c)}` : "")}
         </div>

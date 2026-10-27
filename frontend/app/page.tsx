@@ -20,6 +20,7 @@ import { Panel } from "@/components/ui";
 import { SignalPopup } from "@/components/SignalPopup";
 import { AuthGate } from "@/components/AuthGate";
 import { NowBanner } from "@/components/NowBanner";
+import { SymbolSummary } from "@/components/SymbolSummary";
 import { SetupGuide } from "@/components/SetupGuide";
 import { DemoBar } from "@/components/DemoBar";
 import { DEMO } from "@/lib/demo";
@@ -73,20 +74,19 @@ function Workstation() {
       {s && (
         <>
           <NowBanner s={s} />
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 xl:grid-cols-[320px_minmax(0,1fr)_400px]">
-            <div className="flex min-w-0 flex-col gap-3">
-              <Watchlist rows={s.watchlist} selected={sym} onSelect={(x) => { setSym(x); setPinned(null); }} />
-              <Alerts alerts={s.alerts} />
-              <SimControls s={s} onChanged={refresh} />
-            </div>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="flex min-w-0 flex-col gap-3">
               <PriceChart symbol={sym} tf={tf} onTf={setTf} data={chart.data?.symbol === sym ? chart.data : null} signal={selected} onRange={setRange} error={chart.error} />
               <PremiumChart signal={selected} range={range} />
               <TradingViewPanel symbol={sym} />
             </div>
             <div className="flex min-w-0 flex-col gap-3">
+              <Watchlist rows={s.watchlist} selected={sym} onSelect={(x) => { setSym(x); setPinned(null); }} />
+              <SymbolSummary row={s.watchlist.find((w) => w.symbol === sym)} badge={s.badge} />
               {selected && selected.underlying === sym ? <SignalCard signal={selected} /> : <NoTradePanel ev={evalr.data ?? null} symbol={sym} />}
               {selected && selected.closed && <NoTradePanel ev={evalr.data ?? null} symbol={sym} />}
+              <Alerts alerts={s.alerts} />
+              <SimControls s={s} onChanged={refresh} />
             </div>
           </div>
           <nav className="flex flex-wrap gap-1" role="tablist" aria-label="Workspace sections">
