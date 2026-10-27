@@ -137,7 +137,8 @@ def ask_kite_credentials() -> None:
 
 
 def telegram_setup() -> None:
-    """One-time: save your Telegram bot token and chat id in .env, then send a clearly-labelled test message."""
+    """Save your Telegram bot token and the chat id(s) in .env, then send a clearly-labelled test message.
+    Run it again to add another of your own accounts: the saved token is reused."""
     import json
     import urllib.request
 
@@ -148,28 +149,43 @@ def telegram_setup() -> None:
         with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310 - fixed https host
             return json.loads(r.read())
 
-    print("\nTelegram alerts setup (alerts go only to your own Telegram chat).\n"
-          "1. In Telegram, open @BotFather, send /newbot, and follow the steps. It gives you a token.\n"
-          "2. Open your new bot in Telegram and press Start (or send it any message).\n"
-          "The token is saved only in the file .env on this computer.\n")
-    token = getpass.getpass("Bot token (hidden as you type): ").strip()
-    if not token:
-        die("No token entered.")
+    env = read_env()
+    token = env.get("TELEGRAM_BOT_TOKEN", "")
+    print("\nTelegram alerts setup (alerts go only to YOUR own Telegram accounts).\n")
+    if token:
+        print("A bot token is already saved, so it will be reused. Chats now receiving alerts: "
+              f"{env.get('TELEGRAM_CHAT_ID') or 'none'}\n")
+    else:
+        print("1. In Telegram, open @BotFather, send /newbot, and follow the steps. It gives you a token.\n"
+              "The token is saved only in the file .env on this computer.\n")
+        token = getpass.getpass("Bot token (hidden as you type): ").strip()
+        if not token:
+            die("No token entered.")
+    print("Open your bot from EACH of your own Telegram accounts (including the new one) and press Start, or send it a message.")
     try:
-        me = call(token, "getMe")
-        if not me.get("ok"):
+        if not call(token, "getMe").get("ok"):
             die("Telegram did not accept that token. Check it and try again.")
-        input("Now send any message to your bot in Telegram, then press Enter here... ")
-        chats = {u["message"]["chat"]["id"]: u["message"]["chat"].get("first_name", "") for u in call(token, "getUpdates").get("result", [])
-                 if "message" in u}
-        if not chats:
+        input("Press Enter here when you have done that... ")
+        seen: dict[str, str] = {}
+        for u in call(token, "getUpdates").get("result", []):
+            m = u.get("message")
+            if m and m["chat"].get("type") == "private":
+                c = m["chat"]
+                seen[str(c["id"])] = " ".join(x for x in (c.get("first_name"), c.get("last_name")) if x) or str(c["id"])
+        if not seen:
             die("No message from you was found. Send a message to the bot first, then run this again.")
-        chat_id = list(chats)[-1]
-        write_env({"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": str(chat_id)})
-        call(token, "sendMessage", {"chat_id": chat_id, "text": "TEST: CandleEdge alerts are connected. This is not a trade signal."})
+        print("\nChats that messaged your bot:")
+        for cid, name in seen.items():
+            print(f"  {name}  (id {cid})")
+        if input("\nSend alerts to ALL of these chats? Only say yes if every one is you. (yes/no): ").strip().lower() not in ("y", "yes"):
+            die("Nothing changed. Run this again once only your own accounts have messaged the bot.")
+        ids = ",".join(seen)
+        write_env({"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": ids})
+        for cid in seen:
+            call(token, "sendMessage", {"chat_id": cid, "text": "TEST: CandleEdge alerts are connected. This is not a trade signal."})
     except OSError as e:
         die(f"Could not reach Telegram ({e}). Check your internet and try again.")
-    say("Saved. A test message was sent to your Telegram. Real setup alerts will arrive there from now on (live data only).")
+    say(f"Saved. A test message was sent to {len(seen)} chat(s). Real setup alerts will arrive there from now on (live data only).")
 
 
 def port_busy(port: int) -> bool:

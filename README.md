@@ -175,7 +175,9 @@ CandleEdge can send each new CALL/PUT setup to **your own** Telegram chat: contr
 loss, taken from the app's own trade plan (never invented). It also sends updates when a setup triggers, hits a target, stops
 out or expires.
 
-1. Run `telegram-setup.bat` (or `python run.py --telegram-setup`) once and follow the steps. The bot token is saved only in `.env`.
+1. Run `telegram-setup.bat` (or `python run.py --telegram-setup`) and follow the steps. The bot token is saved only in `.env`.
+   To add another of **your own** accounts, press Start on the bot from that account and run it again: the saved token is reused and
+   alerts then go to every chat you confirm (stored as comma-separated ids in `TELEGRAM_CHAT_ID`).
 2. Alerts are sent for **live-data** setups only. Simulated setups are not sent unless `NOTIFY_SIMULATED=true`.
 3. These are paper-trading signals, not advice, and no order is placed. Sending trade calls to other people can need SEBI
    registration, so this feature deliberately sends to one chat id only (yours).

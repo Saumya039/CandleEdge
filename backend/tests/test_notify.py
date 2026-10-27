@@ -8,6 +8,7 @@ import json
 
 import httpx
 
+from stratagy.config import Settings
 from stratagy.models import SignalState
 from stratagy.notify import Notifier, TelegramChannel, format_signal_message
 from tests.conftest import first_signal_engine, new_engine, run_until
@@ -76,3 +77,11 @@ def test_telegram_channel_posts_to_the_bot_api_with_the_configured_chat():
     asyncio.run(ch.send("hello"))
     assert seen[0].url.host == "api.telegram.org" and seen[0].url.path == "/botTOKEN/sendMessage"
     assert json.loads(seen[0].content) == {"chat_id": "12345", "text": "hello"}
+
+
+def test_several_of_your_own_chats_each_get_a_channel():
+    from stratagy.app import build_notifier
+
+    n = build_notifier(Settings(telegram_bot_token="T", telegram_chat_id="111, 222"))
+    assert [c._chat_id for c in n.channels] == ["111", "222"]
+    assert not build_notifier(Settings(telegram_bot_token="", telegram_chat_id="111")).enabled

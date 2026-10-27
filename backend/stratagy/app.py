@@ -128,8 +128,9 @@ class RateLimiter:
 
 def build_notifier(settings: Settings) -> Notifier:
     chans: list[Channel] = []
-    if settings.telegram_bot_token and settings.telegram_chat_id:
-        chans.append(TelegramChannel(settings.telegram_bot_token, settings.telegram_chat_id))
+    if settings.telegram_bot_token:
+        for chat in [c.strip() for c in settings.telegram_chat_id.split(",") if c.strip()]:  # one or more of YOUR chats
+            chans.append(TelegramChannel(settings.telegram_bot_token, chat))
     return Notifier(chans, send_simulated=settings.notify_simulated)
 
 
