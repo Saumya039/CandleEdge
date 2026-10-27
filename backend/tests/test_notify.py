@@ -36,7 +36,7 @@ def test_message_uses_the_plan_numbers_and_labels_simulated():
     assert f"Stop loss: {p.premium_stop:g}" in txt.replace(",", "") or "Stop loss:" in txt
     for label in ("Buy at or below:", "Target 1:", "Target 2:", "Stop loss:"):
         assert label in txt
-    assert "No order was placed" in txt and "not a win probability" in txt
+    assert "placed no order" in txt and "not a win probability" in txt
     assert format_signal_message(sig, SignalState.WATCHING, "", simulated=False) is None
 
 

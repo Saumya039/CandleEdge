@@ -55,7 +55,7 @@ def format_signal_message(sig: Signal, to: SignalState, reason: str, *, simulate
     ]
     if to not in (SignalState.CANDIDATE,):
         lines.append(f"Update: {reason}")
-    lines.append("Paper-trading signal from your own app. Not advice. No order was placed.")
+    lines.append("Signal from your own app. Not advice. The app placed no order: any trade is your own decision.")
     return "\n".join(lines)
 
 

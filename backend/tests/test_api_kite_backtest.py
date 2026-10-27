@@ -362,8 +362,9 @@ def test_default_risk_limits_are_on_by_default_labelled_and_replaced_when_the_us
     app = create_app(Settings(provider="simulator"), provider=prov, journal=Journal("sqlite://", create_tables=True), autorun=False)
     with TestClient(app) as c:
         risk = c.get("/api/state").json()["risk_settings"]
-        assert risk["confirmed"] is True and risk["defaults_in_use"] is True  # paper only; shown as DEFAULT LIMITS
-        body = {k: v for k, v in risk.items() if k not in ("paper_square_off", "defaults_in_use")} | {"trading_cutoff": "15:10"}
+        assert risk["confirmed"] is True and risk["defaults_in_use"] is True  # shown as DEFAULT LIMITS
+        assert risk["max_trades_per_session"] >= 10000 and risk["max_open_positions"] >= 1000  # alert mode: no cap silences a setup
+        body = {k: v for k, v in risk.items() if k not in ("paper_square_off", "defaults_in_use")} | {"trading_cutoff": "15:10", "max_risk_per_trade": 5000, "max_daily_loss": 15000, "max_open_positions": 1, "max_trades_per_session": 4, "max_premium_deployed": 100000, "cooldown_after_losses": 2, "cooldown_minutes": 30}
         resp = c.post("/api/settings/risk", json=body)
         assert resp.status_code == 200, resp.text
         saved = resp.json()

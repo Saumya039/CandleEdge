@@ -23,7 +23,7 @@ from . import auth
 from . import indicators as ind
 from .backtest import run_backtest
 from .candles import forming_bar, resample
-from .config import RiskSettings, Settings
+from .config import ALERT_MODE_LIMITS, RiskSettings, Settings
 from .engine import Engine
 from .journal import Journal
 from .models import IST, DataStatus, Direction
@@ -182,7 +182,7 @@ def create_app(settings: Settings | None = None, provider: MarketDataProvider | 
         cal = (ExchangeCalendar() if st.provider.name == "simulator"
                else ExchangeCalendar.from_file(settings.calendar_file))
         st.engine = Engine(st.provider, calendar=cal, journal=st.journal, notifier=st.notifier,
-                           risk=RiskSettings(confirmed=True, defaults_in_use=True) if settings.use_default_risk else None)
+                           risk=RiskSettings(confirmed=True, defaults_in_use=True, **ALERT_MODE_LIMITS) if settings.use_default_risk else None)
         await st.engine.start()
         if autorun:
             st.task = asyncio.create_task(_runner(st))

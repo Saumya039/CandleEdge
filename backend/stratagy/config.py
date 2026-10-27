@@ -91,6 +91,13 @@ class CostModel(BaseModel):
     slippage_pct: float = 0.25  # per side, % of premium; the larger of the two applies
 
 
+# Alert mode: the app only ALERTS and (in its paper journal) never limits how many setups it reports, so none of the
+# paper-trade caps can silence a valid setup. These are not trading permissions: the app places no orders at all.
+ALERT_MODE_LIMITS: dict[str, float | int] = dict(
+    max_risk_per_trade=1e8, max_daily_loss=1e9, max_open_positions=1000, max_trades_per_session=10000,
+    max_premium_deployed=1e9, cooldown_after_losses=1000, cooldown_minutes=0)
+
+
 class RiskSettings(BaseModel):
     """User risk settings. Sizing is refused until `confirmed` is true (explicit user confirmation)."""
 
