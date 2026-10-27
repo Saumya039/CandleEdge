@@ -181,3 +181,4 @@ out or expires.
 2. Alerts are sent for **live-data** setups only. Simulated setups are not sent unless `NOTIFY_SIMULATED=true`.
 3. These are paper-trading signals, not advice, and no order is placed. Sending trade calls to other people can need SEBI
    registration, so this feature deliberately sends to one chat id only (yours).
+4. To see what an alert looks like, run `telegram-test.bat`. It sends one message marked TEST ONLY and not a real setup.

@@ -188,6 +188,37 @@ def telegram_setup() -> None:
     say(f"Saved. A test message was sent to {len(seen)} chat(s). Real setup alerts will arrive there from now on (live data only).")
 
 
+def telegram_test() -> None:
+    """Send one clearly-labelled SAMPLE call to every saved Telegram chat, in the same layout as real alerts."""
+    import json
+    import urllib.request
+
+    env = read_env()
+    token, chats = env.get("TELEGRAM_BOT_TOKEN", ""), [c for c in env.get("TELEGRAM_CHAT_ID", "").split(",") if c.strip()]
+    if not token or not chats:
+        die("Telegram is not set up yet. Run telegram-setup.bat first.")
+    text = ("TEST ONLY - SAMPLE, NOT A REAL SETUP\n"
+            "BUY CALL - SETUP\n"
+            "NIFTY26OCT22900CE  (strike 22,900 CE, exp 27-Oct-2026)\n"
+            "Buy at or below: 150\n"
+            "Target 1: 180\n"
+            "Target 2: 220\n"
+            "Stop loss: 135\n"
+            "NIFTY entry zone 22,880 to 22,895, invalid beyond 22,840\n"
+            "Lot 75 | R:R to T1 1.60 | score 72 (not a win probability)\n"
+            "This is only a test of the message layout. No real setup, no order.")
+    for c in chats:
+        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage",
+                                     data=json.dumps({"chat_id": c.strip(), "text": text}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:  # noqa: S310 - fixed https host
+                ok = json.loads(r.read()).get("ok")
+        except OSError as e:
+            die(f"Could not send ({e}). Check your internet and try again.")
+        say(f"Chat {c.strip()}: {'sent' if ok else 'Telegram refused it'}")
+
+
 def port_busy(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
         sk.settimeout(0.5)
@@ -210,12 +241,16 @@ def main() -> None:
     ap.add_argument("--all-fno", action="store_true", help="with --live: watch every F&O index and stock (slow first start)")
     ap.add_argument("--live", action="store_true", help="use Zerodha Kite live data instead of the simulator")
     ap.add_argument("--telegram-setup", action="store_true", help="one-time setup of Telegram setup alerts, then exit")
+    ap.add_argument("--telegram-test", action="store_true", help="send a labelled SAMPLE call to your Telegram, then exit")
     ap.add_argument("--no-browser", action="store_true", help="do not open the browser")
     ap.add_argument("--rebuild", action="store_true", help="force a rebuild of the web app")
     args = ap.parse_args()
 
     if args.telegram_setup:
         telegram_setup()
+        return
+    if args.telegram_test:
+        telegram_test()
         return
     npm = check_tools()
     npx = shutil.which("npx") or die("npx was not found. Reinstall Node.js from nodejs.org.")
