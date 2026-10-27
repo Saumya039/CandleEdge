@@ -20,7 +20,7 @@ export function StatusBar({ s, error, onPause }: { s: AppState | null; error: st
   }
   const d = s.data;
   const age = s.watchlist.map((w) => w.tick_age_s).filter((x): x is number => x !== null);
-  const worst = age.length ? Math.max(...age) : null;
+  const worst = age.length ? Math.min(...age) : null; // freshest name = feed age; one illiquid name must not look like a dead feed
   return (
     <header className="flex flex-col gap-2" data-testid="status-bar">
       <div className="panel flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
@@ -32,7 +32,7 @@ export function StatusBar({ s, error, onPause }: { s: AppState | null; error: st
         <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1">
           <span className="text-muted">Provider <b className="text-ink">{d.provider}</b> <span className={d.status === "LIVE" ? "text-up" : d.status === "SIMULATED" ? "text-sim" : "text-down"}>{d.status}</span></span>
           <span className="text-muted">Feed <b className={d.connected ? "text-up" : "text-down"}>{d.connected ? "connected" : "DISCONNECTED"}</b> <span className="text-muted">({d.transport})</span></span>
-          <span className="text-muted">Last tick <b className="num text-ink">{istTime(d.last_tick_ts)}</b>{worst !== null && <span className={`num ml-1 ${worst > 5 ? "text-down" : "text-muted"}`}>({worst.toFixed(0)}s ago)</span>}</span>
+          <span className="text-muted">Last tick <b className="num text-ink">{istTime(d.last_tick_ts)}</b>{worst !== null && <span className={`num ml-1 ${worst > 15 ? "text-down" : "text-muted"}`}>({worst.toFixed(0)}s ago)</span>}</span>
           <span className="text-muted">Latency <b className="num text-ink">{d.latency_ms === null ? "n/a" : `${d.latency_ms.toFixed(0)} ms`}</b></span>
           <button className={`btn ${s.risk_state.paused ? "btn-primary" : "btn-danger"}`} data-testid="pause-btn" onClick={() => onPause(!s.risk_state.paused)}
             title="Global pause: stops NEW paper entries. Never touches broker positions.">

@@ -254,3 +254,21 @@ def test_live_orders_disabled_by_default_and_no_order_code_exists():
     from stratagy.providers.simulator import SimulatorProvider
 
     assert KiteProvider.capabilities.order_api is False and SimulatorProvider.capabilities.order_api is False
+
+
+def test_one_stale_name_does_not_flag_the_whole_feed_but_blocks_that_name():
+    eng, prov = new_engine(1)
+
+    async def go():
+        await eng.start()
+        await run_until(eng, prov, lambda e: prov.now().hour == 9 and prov.now().minute >= 25)
+        now = prov.now()
+        names = list(eng.u)
+        assert len(names) >= 2
+        eng.u[names[0]].last_tick_ts = now - timedelta(seconds=eng.dh.stale_after_s + 100)  # one illiquid name
+        assert not eng.is_stale(now)  # others are fresh: feed is healthy
+        for st in eng.u.values():
+            st.last_tick_ts = now - timedelta(seconds=eng.dh.stale_after_s + 100)
+        assert eng.is_stale(now)  # nothing fresh anywhere: fail closed
+
+    asyncio.run(go())

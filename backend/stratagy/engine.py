@@ -104,6 +104,9 @@ class Engine:
         self.cost = cost or CostModel()
         self.risk = risk or RiskSettings()
         self.dh = health_params or DataHealthParams()
+        floor = getattr(provider, "min_stale_s", None)  # REST-polling providers refresh slower than a push feed
+        if floor and self.dh.stale_after_s < floor:
+            self.dh = self.dh.model_copy(update={"stale_after_s": float(floor)})
         self.journal = journal
         self.origin = origin
         self.chain_ttl_s = chain_ttl_s
@@ -294,10 +297,12 @@ class Engine:
     def is_stale(self, now: datetime) -> bool:
         if self.phase(now) not in (SessionPhase.OPENING_RANGE, SessionPhase.TRADING, SessionPhase.NO_NEW_ENTRIES):
             return False
-        for st in self.u.values():
-            if st.last_tick_ts is None or (now - st.last_tick_ts).total_seconds() > self.dh.stale_after_s:
-                return True
-        return False
+        # Feed-level: stale only when NO watched name has a fresh tick. A single illiquid name must not blank the
+        # whole screen; it is blocked individually by the per-underlying `tick_fresh` gate (fail closed per name).
+        if not self.u:
+            return False
+        return all(st.last_tick_ts is None or (now - st.last_tick_ts).total_seconds() > self.dh.stale_after_s
+                   for st in self.u.values())
 
     def _gates(self, now: datetime, und: str) -> list[Check]:
         g = risk_gate(now, self.risk_state, self.risk, self._cutoff_dt(now))

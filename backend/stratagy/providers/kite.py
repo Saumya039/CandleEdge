@@ -90,6 +90,7 @@ class KiteProvider(MarketDataProvider):
         self.calendar = calendar or ExchangeCalendar()
         self._transport = transport
         self.poll_interval_s = poll_interval_s
+        self.min_stale_s = 15.0  # a REST poll of ~200 names takes several seconds; 5 s would flag a healthy feed
         self._client: httpx.AsyncClient | None = None
         self._connected = False
         self._authenticated = False
@@ -267,7 +268,7 @@ class KiteProvider(MarketDataProvider):
                     recv = self.now()
                     data = r.json().get("data", {})
                     for iid, q in data.items():
-                        ts = _parse_ts(q.get("last_trade_time")) or _parse_ts(q.get("timestamp"))
+                        ts = _parse_ts(q.get("timestamp")) or _parse_ts(q.get("last_trade_time"))
                         tick = Tick(instrument_id=iid, ltp=float(q["last_price"]), volume=q.get("volume"),
                                     oi=q.get("oi"), exchange_ts=ts, received_ts=recv)
                         self._last_tick_ts, self._last_recv = ts or self._last_tick_ts, recv
@@ -328,7 +329,7 @@ class KiteProvider(MarketDataProvider):
             depth = q.get("depth") or {}
             bid = (depth.get("buy") or [{}])[0].get("price") or None
             ask = (depth.get("sell") or [{}])[0].get("price") or None
-            ts = _parse_ts(q.get("last_trade_time")) or _parse_ts(q.get("timestamp")) or recv
+            ts = _parse_ts(q.get("timestamp")) or _parse_ts(q.get("last_trade_time")) or recv
             newest = max(newest, ts) if newest else ts
             ltp = float(q["last_price"]) if q.get("last_price") else None
             ref = (bid + ask) / 2 if bid and ask else ltp
