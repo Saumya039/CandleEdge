@@ -17,7 +17,7 @@ def build_provider(s: Settings) -> MarketDataProvider:
         from .kite_auth import load_token
 
         token = s.kite_access_token or load_token(Path(s.kite_token_file))
-        return KiteProvider(s.kite_api_key, token, wl)
+        return KiteProvider(s.kite_api_key, token, wl, stream=s.kite_stream)
     if s.provider != "simulator":
         raise ValueError(f"Unknown PROVIDER '{s.provider}' (use simulator or kite)")
     sim_date = date.fromisoformat(s.sim_date) if s.sim_date else None

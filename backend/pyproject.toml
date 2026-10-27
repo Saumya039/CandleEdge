@@ -12,6 +12,7 @@ dependencies = [
   "alembic>=1.13",
   "numpy>=1.26",
   "httpx>=0.27",
+  "websockets>=12",
   "psycopg[binary]>=3.1",
 ]
 

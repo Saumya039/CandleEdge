@@ -116,6 +116,7 @@ implementing `providers/base.py`.
 | `WATCHLIST` | `NIFTY,BANKNIFTY` | Underlyings to monitor |
 | `SIM_SEED`, `SIM_SPEED` | `7`, `60` | Simulator seed and virtual-clock speed (virtual seconds per real second) |
 | `KITE_API_KEY`, `KITE_ACCESS_TOKEN` | empty | Live data credentials (placeholders only in `.env.example`) |
+| `KITE_STREAM` | `true` | Live WebSocket ticks (REST `/quote` polling is only the fallback while the stream is down). Set `false` to force polling |
 | `LIVE_ORDERS_ENABLED` | `false` | Reserved. Has no effect; no order code exists |
 | `CORS_ORIGINS`, `LOG_LEVEL` | | Backend CORS and logging |
 | `NEXT_PUBLIC_API_URL` / `BACKEND_URL` | | Frontend API base / dev proxy target |

@@ -135,6 +135,7 @@ class Settings(BaseSettings):
     sim_speed: float = 60.0  # virtual seconds per real second
     kite_api_key: str = ""
     kite_access_token: str = ""
+    kite_stream: bool = True  # live WebSocket ticks; REST polling is only the fallback while the stream is down
     kite_api_secret: str = ""  # used only to exchange the daily login; never stored or sent to the browser
     kite_token_file: str = "data/kite_token.json"
     public_backend_url: str = "http://127.0.0.1:8000"  # what you register as the Kite redirect URL base

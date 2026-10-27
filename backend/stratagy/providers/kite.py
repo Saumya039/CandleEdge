@@ -10,8 +10,8 @@ is covered by contract-style unit tests using recorded-shape fixtures only. Befo
 
 Design notes
 * No order endpoints are called or implemented. Only a data-scoped token is needed.
-* Ticks come from polling `/quote` (rate limit ~1 req/s). Intra-poll highs/lows are therefore missed; the engine
-  reconciles each closed 1m candle against the provider's historical 1m candles (`reconcile`).
+* Ticks stream over Kite's WebSocket (`kite_stream.py`, full mode). If the stream is down, `/quote` polling (rate limit
+  ~1 req/s) takes over. Intra-poll highs/lows are missed when polling; the engine reconciles each closed 1m candle against the provider's historical 1m candles (`reconcile`).
 * The signal instrument for an index underlying is its nearest-month FUTURE (indices carry no volume), and
   the option chain is priced against that future as the forward (Black-76) for ESTIMATED IV/Greeks.
 * LIVE is only reported when authenticated and the newest exchange timestamp is fresh; otherwise STALE."""
@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import io
+import json
 import logging
 import random
 import time as _time
@@ -28,6 +29,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, cast
 
 import httpx
+import websockets
 
 from .. import pricing
 from ..models import (
@@ -57,9 +59,11 @@ from .base import (
     UnderlyingSpec,
     _Handle,
 )
+from .kite_stream import decode_frame
 
 log = logging.getLogger("stratagy.kite")
 BASE = "https://api.kite.trade"
+WS_URL = "wss://ws.kite.trade"
 INTERVAL = {"1m": "minute", "3m": "3minute", "5m": "5minute", "15m": "15minute"}
 
 
@@ -84,13 +88,22 @@ class KiteProvider(MarketDataProvider):
     )
 
     def __init__(self, api_key: str, access_token: str, watchlist: list[str], calendar: ExchangeCalendar | None = None,
-                 transport: httpx.AsyncBaseTransport | None = None, poll_interval_s: float = 1.2):
+                 transport: httpx.AsyncBaseTransport | None = None, poll_interval_s: float = 1.2,
+                 stream: bool = False, ws_url: str = WS_URL):
         self.api_key, self._token = api_key, access_token
         self.watchlist = watchlist
         self.calendar = calendar or ExchangeCalendar()
         self._transport = transport
         self.poll_interval_s = poll_interval_s
-        self.min_stale_s = 15.0  # a REST poll of ~200 names takes several seconds; 5 s would flag a healthy feed
+        self.stream = stream  # True: live WebSocket ticks; REST polling then only runs while the stream is down
+        self.ws_url = ws_url
+        # REST polling of ~200 names takes several seconds; a pushed stream does not
+        self.min_stale_s = 10.0 if stream else 15.0
+        self._ws: Any = None
+        self._stream_task: asyncio.Task | None = None
+        self._stream_alive = 0.0  # monotonic time of the last frame (data or heartbeat)
+        self._stream_failures = 0
+        self._tok2id: dict[int, str] = {}
         self._client: httpx.AsyncClient | None = None
         self._connected = False
         self._authenticated = False
@@ -159,12 +172,17 @@ class KiteProvider(MarketDataProvider):
         self._instruments = list(csv.DictReader(io.StringIO(r.text)))
         self._build_specs()
         self._connected = True
-        self._message = "Connected (REST polling)"
+        self._message = "Connected (streaming)" if self.stream else "Connected (REST polling)"
+        self._tok2id = {t: i for i, t in self._tokens.items()}
         self._poll_task = asyncio.create_task(self._poll_loop())
+        if self.stream:
+            self._stream_task = asyncio.create_task(self._stream_loop())
 
     async def disconnect(self) -> None:
         if self._poll_task:
             self._poll_task.cancel()
+        if self._stream_task:
+            self._stream_task.cancel()
         if self._client:
             await self._client.aclose()
         self._connected = False
@@ -251,7 +269,10 @@ class KiteProvider(MarketDataProvider):
         self._cb_n += 1
         cid = self._cb_n
         self._callbacks[cid] = (set(instrument_ids), on_tick)
+        new = set(instrument_ids) - self._sub_ids
         self._sub_ids |= set(instrument_ids)
+        if new:
+            await self._ws_subscribe(sorted(new))
 
         def cancel() -> None:
             self._callbacks.pop(cid, None)
@@ -262,6 +283,9 @@ class KiteProvider(MarketDataProvider):
         delay = self.poll_interval_s
         while True:
             try:
+                if self._stream_up():  # the pushed stream is healthy: no need to poll
+                    await asyncio.sleep(1.0)
+                    continue
                 ids = sorted(self._sub_ids)
                 if ids:
                     r = await self._get("/quote", [("i", i) for i in ids])
@@ -289,6 +313,65 @@ class KiteProvider(MarketDataProvider):
                 self._message = f"poll error: {type(e).__name__}: {e}"
                 delay = min(30.0, 1.5 ** min(self._failures, 8)) + random.uniform(0, 1)
             await asyncio.sleep(delay)
+
+    # ---- streaming --------------------------------------------------------------------------------
+    def _stream_up(self) -> bool:
+        return self.stream and self._ws is not None and (_time.monotonic() - self._stream_alive) < 5.0
+
+    async def _ws_subscribe(self, ids: list[str]) -> None:
+        ws = self._ws
+        toks = [self._tokens[i] for i in ids if i in self._tokens]
+        if ws is None or not toks:
+            return
+        try:
+            await ws.send(json.dumps({"a": "subscribe", "v": toks}))
+            await ws.send(json.dumps({"a": "mode", "v": ["full", toks]}))
+        except Exception as e:  # noqa: BLE001 - the stream loop reconnects and resubscribes everything
+            log.warning("stream subscribe failed: %s", type(e).__name__)
+
+    def _on_frame(self, data: bytes) -> None:
+        recv = self.now()
+        for pkt in decode_frame(data):
+            iid = self._tok2id.get(pkt["token"])
+            if iid is None:
+                continue
+            ts = pkt["exchange_ts"]
+            tick = Tick(instrument_id=iid, ltp=float(pkt["ltp"]), volume=pkt["volume"], oi=pkt["oi"],
+                        exchange_ts=ts, received_ts=recv)
+            self._last_tick_ts, self._last_recv = ts or self._last_tick_ts, recv
+            self._latency_ms = max((recv - ts).total_seconds() * 1000, 0.0) if ts else self._latency_ms
+            for want, cb in list(self._callbacks.values()):
+                if iid in want:
+                    cb(tick)
+
+    async def _stream_loop(self) -> None:
+        """Connect, subscribe everything, read frames. On any failure: back off with jitter, reconnect, resubscribe."""
+        while True:
+            try:
+                url = f"{self.ws_url}?api_key={self.api_key}&access_token={self._token}"  # never logged
+                async with websockets.connect(url, ping_interval=None, open_timeout=10, max_size=2**23) as ws:
+                    self._ws = ws
+                    self._stream_alive = _time.monotonic()
+                    self._stream_failures = 0
+                    self._failures = 0
+                    self._message = "Connected (streaming)"
+                    await self._ws_subscribe(sorted(self._sub_ids))
+                    while True:
+                        msg = await asyncio.wait_for(ws.recv(), timeout=10.0)  # heartbeat arrives every ~1 s
+                        self._stream_alive = _time.monotonic()
+                        if isinstance(msg, bytes):
+                            self._on_frame(msg)
+                        else:
+                            log.info("kite stream message: %s", str(msg)[:200])
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                self._ws = None
+                self._stream_failures += 1
+                self._message = (f"Streaming down ({type(e).__name__}); using slower REST polling until it reconnects"
+                                 if self._stream_failures else self._message)
+                log.warning("kite stream error: %s", type(e).__name__)
+                await asyncio.sleep(min(30.0, 2.0 ** min(self._stream_failures, 5)) + random.uniform(0, 1))
 
     async def get_option_chain(self, underlying: str, expiry: date | None = None) -> OptionChainSnapshot:
         fut = self._by_symbol.get(underlying)
@@ -366,5 +449,5 @@ class KiteProvider(MarketDataProvider):
         return ProviderHealth(
             name="kite", status=status, connected=self._connected and self._failures == 0,
             authenticated=self._authenticated, last_tick_ts=self._last_tick_ts, last_received_ts=self._last_recv,
-            latency_ms=self._latency_ms, transport="REST polling (/quote)", message=self._message,
+            latency_ms=self._latency_ms, transport="WebSocket stream" if self._stream_up() else "REST polling (/quote)", message=self._message,
             missing_credentials=miss)

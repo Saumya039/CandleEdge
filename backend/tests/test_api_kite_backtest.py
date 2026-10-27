@@ -368,3 +368,115 @@ def test_default_risk_limits_are_on_by_default_labelled_and_replaced_when_the_us
         assert resp.status_code == 200, resp.text
         saved = resp.json()
         assert saved["defaults_in_use"] is False
+
+
+# ------------------------------------------------------------------ streaming
+def _pkt(token: int, ltp: float, volume: int = 0, oi: int = 0, ts: int = 0, full: bool = True) -> bytes:
+    import struct
+
+    if not full:
+        return struct.pack(">ii", token, round(ltp * 100))
+    body = struct.pack(">iiiiiii", token, round(ltp * 100), 10, round(ltp * 100), volume, 0, 0) + struct.pack(">iiii", 1, 2, 3, 4)
+    body += struct.pack(">iiiii", ts, oi, 0, 0, ts) + bytes(184 - 64)
+    return body
+
+
+def _frame(*pkts: bytes) -> bytes:
+    import struct
+
+    return struct.pack(">H", len(pkts)) + b"".join(struct.pack(">H", len(p)) + p for p in pkts)
+
+
+def test_stream_frames_decode_ltp_full_and_skip_garbage():
+    from stratagy.providers.kite_stream import decode_frame
+
+    ts = 1_790_000_000
+    got = decode_frame(_frame(_pkt(0x0F0002, 24512.35, volume=777, oi=42, ts=ts), _pkt(0x0F0002, 100.5, full=False), b"\x00" * 5))
+    assert len(got) == 2  # the 5-byte packet is unknown: skipped, never guessed
+    assert got[0]["ltp"] == 24512.35 and got[0]["volume"] == 777 and got[0]["oi"] == 42
+    assert got[0]["exchange_ts"].timestamp() == ts and got[0]["exchange_ts"].utcoffset() == timedelta(hours=5, minutes=30)
+    assert got[1]["ltp"] == 100.5 and got[1]["volume"] is None
+    assert decode_frame(b"\x00") == [] and decode_frame(_frame(_pkt(1, 1.0))[:6]) == []  # heartbeat / truncated frame
+
+
+def test_stream_delivers_ticks_to_subscribers_and_replaces_polling():
+    import json as _json
+
+    import websockets
+
+    from stratagy.models import Tick
+    today = date.today()
+    seen: list[Tick] = []
+    subs: list[dict] = []
+
+    async def go():
+        async def server(ws):
+            async for m in ws:
+                subs.append(_json.loads(m))
+                if subs[-1]["a"] == "mode":
+                    tok = subs[-1]["v"][1][0]
+                    await ws.send(_frame(_pkt(tok, 24501.5, volume=9, oi=5, ts=int(datetime.now(IST).timestamp()))))
+                    await ws.send(b"\x00")  # heartbeat
+
+        async with websockets.serve(server, "127.0.0.1", 0) as srv:
+            port = srv.sockets[0].getsockname()[1]
+            quotes = {"n": 0}
+            base = kite_handler(today)
+
+            def handler(req):
+                quotes["n"] += req.url.path == "/quote"
+                return base(req)
+
+            p = KiteProvider("k", "t", ["NIFTY"], transport=httpx.MockTransport(handler), poll_interval_s=0.05,
+                             stream=True, ws_url=f"ws://127.0.0.1:{port}")
+            await p.connect()
+            spec = p.underlyings()[0].signal_instrument
+            await p.subscribe_ticks([spec.id], seen.append)
+            for _ in range(100):
+                if any(t.ltp == 24501.5 for t in seen):
+                    break
+                await asyncio.sleep(0.05)
+            polled = quotes["n"]
+            await asyncio.sleep(0.4)
+            health = p.get_health()
+            await p.disconnect()
+            return polled, quotes["n"], health
+
+    polled, polled_after, health = asyncio.run(go())
+    t = next(x for x in seen if x.ltp == 24501.5)  # the first tick may be the REST fallback before the stream is up
+    assert t.volume == 9 and t.exchange_ts is not None
+    assert subs[0]["a"] == "subscribe" and subs[1]["v"][0] == "full"
+    assert health.transport == "WebSocket stream" and polled_after - polled <= 1  # polling stops once the stream is healthy
+
+
+def test_stream_reconnects_and_resubscribes_after_the_server_drops_it():
+    import json as _json
+
+    import websockets
+
+    today = date.today()
+    connects: list[list[dict]] = []
+
+    async def go():
+        async def server(ws):
+            msgs: list[dict] = []
+            connects.append(msgs)
+            async for m in ws:
+                msgs.append(_json.loads(m))
+                if len(connects) == 1 and msgs[-1]["a"] == "mode":
+                    await ws.close()  # drop the first connection right after subscribing
+
+        async with websockets.serve(server, "127.0.0.1", 0) as srv:
+            port = srv.sockets[0].getsockname()[1]
+            p = KiteProvider("k", "t", ["NIFTY"], transport=httpx.MockTransport(kite_handler(today)), poll_interval_s=0.05,
+                             stream=True, ws_url=f"ws://127.0.0.1:{port}")
+            await p.connect()
+            await p.subscribe_ticks([p.underlyings()[0].signal_instrument.id], lambda t: None)
+            for _ in range(200):
+                if len(connects) >= 2 and len(connects[1]) >= 2:
+                    break
+                await asyncio.sleep(0.05)
+            await p.disconnect()
+
+    asyncio.run(go())
+    assert len(connects) >= 2 and connects[1][0]["a"] == "subscribe" and connects[1][0]["v"] == connects[0][0]["v"]
