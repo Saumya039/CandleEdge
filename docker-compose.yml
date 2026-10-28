@@ -1,0 +1,40 @@
+# Local stack: PostgreSQL + API + web UI. Defaults to the SIMULATOR provider (all data labelled SIMULATED).
+# Secrets come from your shell/.env (never commit them). Live order placement does not exist in this stack.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: stratagy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stratagy-local-only}
+      POSTGRES_DB: stratagy
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stratagy"]
+      interval: 5s
+      retries: 10
+    ports: ["127.0.0.1:5432:5432"]
+
+  backend:
+    build: ./backend
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql+psycopg://stratagy:${POSTGRES_PASSWORD:-stratagy-local-only}@db:5432/stratagy
+      PROVIDER: ${PROVIDER:-simulator}
+      WATCHLIST: ${WATCHLIST:-NIFTY,BANKNIFTY}
+      SIM_SEED: ${SIM_SEED:-7}
+      SIM_SPEED: ${SIM_SPEED:-60}
+      KITE_API_KEY: ${KITE_API_KEY:-}
+      KITE_ACCESS_TOKEN: ${KITE_ACCESS_TOKEN:-}
+      LIVE_ORDERS_ENABLED: "false"
+    ports: ["127.0.0.1:8000:8000"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args: { BACKEND_URL: "http://backend:8000" }
+    depends_on: [backend]
+    ports: ["127.0.0.1:3000:3000"]
+
+volumes:
+  pgdata:
