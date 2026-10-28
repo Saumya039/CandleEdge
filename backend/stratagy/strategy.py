@@ -197,7 +197,7 @@ def data_quality_checks(s: Snapshot, p: StrategyParams, dh: DataHealthParams, ba
     out.append(Check(name="feed_status", passed=status_ok and hs.connected,
                      detail=f"Provider {hs.name}: {hs.status.value}, {'connected' if hs.connected else 'DISCONNECTED'}"))
     age = None if s.last_tick_ts is None else (s.now - s.last_tick_ts).total_seconds()
-    out.append(Check(name="tick_fresh", passed=age is not None and 0 <= age <= dh.stale_after_s,
+    out.append(Check(name="tick_fresh", passed=age is not None and -dh.max_clock_skew_s <= age <= dh.stale_after_s,
                      detail="No tick received" if age is None else f"Last underlying tick {age:.1f}s ago (limit {dh.stale_after_s}s)"))
     if s.last_tick_ts is not None and hs.status == DataStatus.LIVE:
         skew = abs((s.now - s.last_tick_ts).total_seconds())

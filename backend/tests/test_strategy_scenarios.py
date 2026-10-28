@@ -307,3 +307,16 @@ def test_no_volume_makes_vwap_unavailable_and_regime_unclassified():
 
 
 _ = (ProviderHealth, IST, datetime)
+
+
+def test_tick_a_few_seconds_newer_than_the_evaluation_clock_is_still_fresh(base):
+    """A pass over 200+ names takes a while, so a tick can land just after the pass's clock was read."""
+    eng, und, snap = base
+    ev = evaluate_with(eng, und, snap.model_copy(update={"last_tick_ts": snap.now + timedelta(seconds=8)}))
+    assert "tick_fresh" not in reasons(ev)
+
+
+def test_tick_far_in_the_future_still_fails_closed(base):
+    eng, und, snap = base
+    ev = evaluate_with(eng, und, snap.model_copy(update={"last_tick_ts": snap.now + timedelta(seconds=120)}))
+    assert ev.decision == "NO_TRADE" and ("tick_fresh" in reasons(ev) or "clock_skew" in reasons(ev))

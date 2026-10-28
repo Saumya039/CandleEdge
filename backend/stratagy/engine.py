@@ -301,10 +301,14 @@ class Engine:
                 for c in await self.provider.reconcile(st.spec.signal_instrument.id, now):  # type: ignore[attr-defined]
                     if c.ts in st.builder.closed:
                         st.builder.closed[c.ts] = c  # provider candle is authoritative for closed minutes
+            now = self.provider.now()  # a pass over 200+ names can take a minute: never judge a name with a stale clock
             due = st.new_candle or st.last_eval_at is None or (now - st.last_eval_at).total_seconds() >= self.eval_interval_s
             if due:
+                phase = self.phase(now)
                 await self._evaluate(und, st, now, phase)
                 await asyncio.sleep(0)  # let API requests run between underlyings so the UI stays responsive with 200+ names
+        now = self.provider.now()
+        phase = self.phase(now)
         for sig in list(self.signals.values()):
             if not sig.closed:
                 await self._manage(sig, now, phase)
