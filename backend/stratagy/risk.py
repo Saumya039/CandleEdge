@@ -76,7 +76,7 @@ def size_position(entry_fill: float, stop_premium: float, lot_size: int, tick: f
     if by_premium < 1:
         return Sizing(lots=0, per_lot_risk=per_lot_risk, per_lot_premium=per_lot_premium,
                       reason="Minimum lot exceeds max premium deployed")
-    return Sizing(lots=min(by_risk, by_premium), per_lot_risk=per_lot_risk, per_lot_premium=per_lot_premium)
+    return Sizing(lots=min(by_risk, by_premium, risk.max_lots), per_lot_risk=per_lot_risk, per_lot_premium=per_lot_premium)
 
 
 class RiskState(BaseModel):

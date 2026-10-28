@@ -34,9 +34,10 @@ def test_message_uses_the_plan_numbers_and_labels_simulated():
     txt = format_signal_message(sig, SignalState.CANDIDATE, "", simulated=True)
     assert txt.startswith("[SIMULATED] BUY PUT") and p.contract.symbol in txt
     assert f"Stop loss: {p.premium_stop:g}" in txt.replace(",", "") or "Stop loss:" in txt
-    for label in ("Buy at or below:", "Target 1:", "Target 2:", "Stop loss:"):
+    for label in ("at or below", "Target 1:", "Target 2:", "Stop loss:", "Enter ONLY if", "Do not buy before that"):
         assert label in txt
-    assert "placed no order" in txt and "not a win probability" in txt
+    assert "WATCH ONLY, NOT AN ENTRY YET" in txt.splitlines()[0]  # an idea must never read like a buy order
+    assert "places no order" in txt and "not a win probability" in txt
     assert format_signal_message(sig, SignalState.WATCHING, "", simulated=False) is None
 
 
@@ -66,7 +67,7 @@ def test_engine_sends_each_transition_once_and_survives_a_failing_channel():
     signal_texts = [t for t in good.texts if "END OF DAY SUMMARY" not in t]
     assert eng.signals and len(signal_texts) == len(sent_states)  # exactly one message per state change
     assert eng.notifier.last_error is not None or good.texts  # the failing channel was logged, not raised
-    assert signal_texts[0].splitlines()[0].endswith("SETUP")  # the first message is the new setup itself
+    assert "NOT AN ENTRY YET" in signal_texts[0].splitlines()[0]  # the first message is the new idea itself
 
 
 def test_telegram_channel_posts_to_the_bot_api_with_the_configured_chat():
@@ -112,3 +113,23 @@ def test_eod_summary_is_sent_once_and_never_for_simulated_by_default():
     sim = Notifier([TelegramChannel("t", "1")], send_simulated=False)
     sim.on_session_close(_report(2), simulated=True)
     assert sim.sent == []
+
+
+def test_triggered_message_has_no_lot_count_or_simulated_fill():
+    eng, _ = first_signal_engine(1)
+    sig = next(iter(eng.signals.values()))
+    txt = format_signal_message(sig, SignalState.TRIGGERED, "PAPER BUY 51652 lot(s) @ 35.20 (simulated fill)", simulated=False)
+    assert "51652" not in txt and "simulated fill" not in txt and "CHECK THE PRICE NOW" in txt
+
+
+def test_app_opened_after_the_close_sends_no_false_empty_day_summary():
+    async def go(after_close: bool) -> list[str]:
+        good = Rec()
+        eng, prov = new_engine(1, notifier=Notifier([good], send_simulated=True))
+        eng.started_after_close = after_close
+        await eng._close_session(prov.now())
+        await asyncio.sleep(0.05)
+        return good.texts
+
+    assert asyncio.run(go(True)) == []  # it saw nothing of today: say nothing rather than "0 setups"
+    assert any("END OF DAY SUMMARY" in t for t in asyncio.run(go(False)))

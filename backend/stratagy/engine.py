@@ -135,6 +135,7 @@ class Engine:
         self.session_report: dict | None = None
         self._handles: list = []
         self.started = False
+        self.started_after_close = False  # app opened once the session was over: it saw nothing of today
         self.start_error: str | None = None
 
     # ---- lifecycle --------------------------------------------------------------------------------
@@ -152,6 +153,7 @@ class Engine:
                 self._bg_task = asyncio.create_task(self._load_rest(rest, source, now))
             self.start_error = None
             self.started = True
+            self.started_after_close = self.phase(now) == SessionPhase.POST_CLOSE
         except ProviderError as e:
             self.start_error = str(e)
             self.started = False
@@ -564,7 +566,7 @@ class Engine:
         self.session_report = session_report(self, now.date())
         if self.journal:
             self.journal.audit(now, "session_closed", {"date": now.date().isoformat(), "summary": self.session_report["summary"]})
-        if self.notifier and self.origin == "PAPER":
+        if self.notifier and self.origin == "PAPER" and not self.started_after_close:
             self.notifier.on_session_close(self.session_report, simulated=self.provider.name in ("simulator", "replay"))
         self._health(now, "session_closed", "Session closed; journal saved")
 

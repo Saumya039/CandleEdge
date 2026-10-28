@@ -18,14 +18,14 @@ from .statemachine import Signal
 log = logging.getLogger("stratagy.notify")
 
 HEADLINE = {
-    SignalState.CANDIDATE: "SETUP",
-    SignalState.TRIGGERED: "ENTRY ZONE HIT (paper)",
+    SignalState.CANDIDATE: "IDEA - WATCH ONLY, NOT AN ENTRY YET",
+    SignalState.TRIGGERED: "ENTRY CONDITION MET - CHECK THE PRICE NOW",
     SignalState.TARGET_1: "TARGET 1 REACHED",
     SignalState.TARGET_2: "TARGET 2 REACHED",
-    SignalState.STOPPED: "STOP LOSS HIT",
-    SignalState.INVALIDATED: "INVALIDATED",
-    SignalState.TIME_EXIT: "TIME EXIT",
-    SignalState.EXPIRED: "EXPIRED",
+    SignalState.STOPPED: "STOP LOSS HIT - EXIT",
+    SignalState.INVALIDATED: "IDEA CANCELLED - DO NOT ENTER",
+    SignalState.TIME_EXIT: "TIME UP - EXIT",
+    SignalState.EXPIRED: "IDEA EXPIRED - DO NOT ENTER",
 }
 
 
@@ -34,7 +34,7 @@ def _n(x: float) -> str:
 
 
 def format_signal_message(sig: Signal, to: SignalState, reason: str, *, simulated: bool) -> str | None:
-    """Plain-text message in the shape traders expect. Returns None for states that should not be sent."""
+    """Plain-text message. A CANDIDATE is only an idea: it says exactly when an entry exists and when to skip."""
     head = HEADLINE.get(to)
     if head is None:
         return None
@@ -42,20 +42,32 @@ def format_signal_message(sig: Signal, to: SignalState, reason: str, *, simulate
     c = p.contract
     side = "BUY CALL" if sig.direction == Direction.CALL else "BUY PUT"
     opt = c.option_type.value if c.option_type else ""
+    lo, hi = p.entry_zone_underlying
     lines = [
         f"{'[SIMULATED] ' if simulated else ''}{side} - {head}",
         f"{c.symbol}" + (f"  (strike {_n(c.strike)} {opt}, exp {c.expiry:%d-%b-%Y})" if c.strike and c.expiry else ""),
-        f"Buy at or below: {_n(p.premium_entry_limit)}",
-        f"Target 1: {_n(p.premium_target1)}",
-        f"Target 2: {_n(p.premium_target2)}",
-        f"Stop loss: {_n(p.premium_stop)}",
-        f"{sig.underlying} entry zone {_n(p.entry_zone_underlying[0])} to {_n(p.entry_zone_underlying[1])}, "
-        f"invalid beyond {_n(p.invalidation_underlying)}",
-        f"Lot {p.lot_size} | R:R to T1 {p.rr_t1:.2f} | score {sig.score if sig.score is not None else 'n/a'} (not a win probability)",
     ]
-    if to not in (SignalState.CANDIDATE,):
-        lines.append(f"Update: {reason}")
-    lines.append("Signal from your own app. Not advice. The app placed no order: any trade is your own decision.")
+    if to == SignalState.CANDIDATE:
+        lines += [
+            f"Enter ONLY if {sig.underlying} trades between {_n(lo)} and {_n(hi)}. Do not buy before that.",
+            f"Then buy the option only if its price is at or below {_n(p.premium_entry_limit)}. If it is higher, skip it.",
+            f"Target 1: {_n(p.premium_target1)} | Target 2: {_n(p.premium_target2)} | Stop loss: {_n(p.premium_stop)}",
+            f"Cancel the idea if {sig.underlying} goes beyond {_n(p.invalidation_underlying)}.",
+        ]
+    elif to == SignalState.TRIGGERED:
+        lines += [
+            f"{sig.underlying} is inside {_n(lo)} to {_n(hi)}. Buy only if the option is at or below {_n(p.premium_entry_limit)} right now.",
+            f"Target 1: {_n(p.premium_target1)} | Target 2: {_n(p.premium_target2)} | Stop loss: {_n(p.premium_stop)}",
+            f"Exit if {sig.underlying} goes beyond {_n(p.invalidation_underlying)}.",
+        ]
+    else:
+        lines.append(f"Plan was: buy at or below {_n(p.premium_entry_limit)}, T1 {_n(p.premium_target1)}, "
+                     f"T2 {_n(p.premium_target2)}, stop {_n(p.premium_stop)}")
+        if reason:
+            lines.append(f"Why: {reason}")
+    lines.append(f"Lot size {p.lot_size} | reward to risk at T1 {p.rr_t1:.2f} | score {sig.score if sig.score is not None else 'n/a'} (not a win probability)")
+    lines.append("This is an idea from your own app, not advice. The app places no order and may be wrong; "
+                 "any trade is your own decision.")
     return "\n".join(lines)
 
 

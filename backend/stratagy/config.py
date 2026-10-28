@@ -95,7 +95,7 @@ class CostModel(BaseModel):
 # paper-trade caps can silence a valid setup. These are not trading permissions: the app places no orders at all.
 ALERT_MODE_LIMITS: dict[str, float | int] = dict(
     max_risk_per_trade=1e8, max_daily_loss=1e9, max_open_positions=1000, max_trades_per_session=10000,
-    max_premium_deployed=1e9, cooldown_after_losses=1000, cooldown_minutes=0)
+    max_premium_deployed=1e9, cooldown_after_losses=1000, cooldown_minutes=0, max_lots=1)
 
 
 class RiskSettings(BaseModel):
@@ -109,6 +109,7 @@ class RiskSettings(BaseModel):
     max_open_positions: int = 1
     max_trades_per_session: int = 4
     max_premium_deployed: float = 100_000.0
+    max_lots: int = 100_000  # hard cap on simulated lots per paper trade (alert mode uses 1)
     cooldown_after_losses: int = 2
     cooldown_minutes: int = 30
     trading_cutoff: time = time(15, 15)
